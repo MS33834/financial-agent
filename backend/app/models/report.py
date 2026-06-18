@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.encryption import EncryptedJSON
 from app.models.base import UUIDBase
 
 
@@ -52,4 +53,15 @@ class Report(UUIDBase):
     summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="报告摘要")
     error_message: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="生成失败时的错误信息"
+    )
+    attributes: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=dict,
+        comment="ABAC 资源属性，如 {'sensitivity': 2, 'department': 'finance'}",
+    )
+    encrypted_summary: Mapped[dict[str, Any] | None] = mapped_column(
+        EncryptedJSON,
+        nullable=True,
+        comment="加密存储的报告摘要（敏感内容）",
     )

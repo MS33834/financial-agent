@@ -1,5 +1,6 @@
 """数据库模型包."""
 
+from app.models.access_policy import AccessPolicy
 from app.models.approval import Approval
 from app.models.audit_log import AuditLog
 from app.models.document import Document
@@ -16,4 +17,5 @@ __all__ = [
     "Approval",
     "AuditLog",
     "FinancialReport",
+    "AccessPolicy",
 ]

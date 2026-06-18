@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import UUIDBase
@@ -31,6 +31,12 @@ class User(UUIDBase):
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="viewer", comment="角色")
     is_active: Mapped[str] = mapped_column(
         String(1), nullable=False, default="Y", comment="是否启用"
+    )
+    attributes: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=dict,
+        comment="ABAC 用户属性，如 {'department': 'finance', 'level': 3}",
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="users")

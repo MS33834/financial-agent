@@ -6,6 +6,7 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.core.abac import ABACEngine
 from app.database import get_db
 from app.models.user import User
 from app.schemas.common import PaginationParams
@@ -62,3 +63,27 @@ def get_current_active_user(
             detail="Inactive user",
         )
     return user
+
+
+def require_abac_permission(
+    resource_type: str,
+    action: str,
+) -> Callable[..., User]:
+    """ABAC 权限校验依赖工厂.
+
+    与 ``require_role`` 配合使用：先校验角色，再校验属性策略。
+    """
+
+    def _check_abac(
+        user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        engine = ABACEngine(db)
+        if not engine.evaluate(user, resource_type, action):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="ABAC policy denied",
+            )
+        return user
+
+    return _check_abac
