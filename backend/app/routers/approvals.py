@@ -1,6 +1,5 @@
 """人工审核路由."""
 
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,7 +10,8 @@ from app.dependencies import get_current_active_user
 from app.models.user import User
 from app.schemas.approval import ApprovalAction, ApprovalResponse
 from app.schemas.common import DataResponse
-from app.services.report_service import get_report, update_report_status
+from app.services.approval_service import ApprovalError, record_approval
+from app.services.report_service import get_report
 
 router = APIRouter(prefix="/api/v1/approvals", tags=["Approvals"])
 
@@ -31,30 +31,29 @@ def approval_action(
             detail="Report not found",
         )
 
-    action = action_data.action.lower()
-    if action == "approve":
-        new_status = "approved"
-    elif action == "reject":
-        new_status = "rejected"
-    elif action == "modify":
-        new_status = "draft"
-    else:
+    try:
+        approval = record_approval(
+            db=db,
+            report=report,
+            action=action_data.action,
+            comments=action_data.comments,
+            user=user,
+        )
+    except ApprovalError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid action",
-        )
-
-    update_report_status(db=db, report=report, status=new_status)
+            detail=str(exc),
+        ) from exc
 
     return {
         "code": 0,
         "message": "ok",
         "data": {
-            "id": "approval-placeholder",
-            "report_id": report_id,
-            "reviewer_id": user.id,
-            "action": action,
-            "comments": action_data.comments,
-            "created_at": datetime.now(UTC).isoformat(),
+            "id": approval.id,
+            "report_id": approval.report_id,
+            "reviewer_id": approval.reviewer_id,
+            "action": approval.action,
+            "comments": approval.comments,
+            "created_at": approval.created_at.isoformat() if approval.created_at else None,
         },
     }

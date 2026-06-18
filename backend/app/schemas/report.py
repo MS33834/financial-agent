@@ -1,6 +1,6 @@
 """报告生成相关 Schema."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -9,7 +9,9 @@ class ReportCreate(BaseModel):
     """创建报告请求."""
 
     title: str = Field(description="报告标题", min_length=1)
-    report_type: str = Field(description="报告类型")
+    report_type: Literal["profit", "balance", "cash", "custom"] = Field(
+        description="报告类型"
+    )
     parameters: dict[str, Any] = Field(default={}, description="报告参数")
 
 

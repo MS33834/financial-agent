@@ -36,14 +36,11 @@ class ReportGenerator:
             包含 content 与 summary 的字典。
 
         Raises:
-            ReportGenerationError: 未找到对应期间的财务数据时抛出。
+            ReportGenerationError: 未找到对应期间的财务数据或参数无效时抛出。
         """
         parameters = report.parameters or {}
-        year = parameters.get("year")
-        period = parameters.get("period", "annual")
-
-        if not isinstance(year, int):
-            raise ReportGenerationError("报告参数缺少有效的 year 字段")
+        year = self._parse_year(parameters.get("year"))
+        period = self._parse_period(parameters.get("period"))
 
         financial = self._fetch_financial(report.tenant_id, year, period)
         if financial is None:
@@ -86,3 +83,19 @@ class ReportGenerator:
             )
             .first()
         )
+
+    @staticmethod
+    def _parse_year(value: Any) -> int:
+        """将 year 参数解析为整数."""
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        raise ReportGenerationError("报告参数缺少有效的 year 字段")
+
+    @staticmethod
+    def _parse_period(value: Any) -> str:
+        """将 period 参数归一化，空值视为 annual."""
+        if not value:
+            return "annual"
+        return str(value).strip()
