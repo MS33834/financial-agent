@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.tsx'
 import { api } from '../api/client.ts'
 import type { Report } from '../types/report.ts'
@@ -38,9 +39,14 @@ export default function ReportsPage() {
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>财务报告中心</h1>
-        <button className="secondary" onClick={logout}>
-          退出登录
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <Link to="/documents">
+            <button className="secondary">文档解析</button>
+          </Link>
+          <button className="secondary" onClick={logout}>
+            退出登录
+          </button>
+        </div>
       </div>
 
       <ReportCreate onCreated={handleCreated} />

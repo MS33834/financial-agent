@@ -53,7 +53,7 @@ def _create_document(db: Session, tenant: Tenant, user: User, filename: str) -> 
     return doc
 
 
-def test_parse_document_task_success() -> None:
+def test_parse_document_task_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """测试文档解析任务成功更新状态与结果.
 
     注意：Celery 任务使用独立的 SessionLocal，为避免 SQLite 事务隔离导致任务看不到
@@ -78,7 +78,16 @@ def test_parse_document_task_success() -> None:
         db.commit()
         db.refresh(user)
 
-        doc = _create_document(db, tenant, user, "profit_q2_2025.pdf")
+        storage_key = "docs/profit_q2_2025.txt"
+        fake_storage = FakeStorageClient({storage_key: b""})
+        monkeypatch.setattr(
+            "app.tasks.document_tasks.get_storage_client",
+            lambda: fake_storage,
+        )
+
+        doc = _create_document(db, tenant, user, "profit_q2_2025.txt")
+        doc.storage_key = storage_key
+        db.commit()
 
         result = parse_document_task.delay(doc.id).get()
 
@@ -87,7 +96,7 @@ def test_parse_document_task_success() -> None:
 
         db.refresh(doc)
         assert doc.status == "success"
-        assert doc.confidence == 0.6
+        assert doc.confidence == 0.3
         assert doc.parse_result is not None
         assert doc.parse_result["detected_year"] == 2025
         assert doc.parse_result["detected_period"] == "Q2"
@@ -115,12 +124,97 @@ def test_simple_parser_extracts_metadata() -> None:
     )
     parser = SimpleDocumentParser(doc)
 
-    result = parser.parse()
+    result = parser.parse(b"", doc.filename)
 
     assert result["extension"] == "xlsx"
     assert result["detected_year"] == 2024
     assert result["detected_period"] == "H1"
-    assert parser.confidence() == 0.6
+    assert result["confidence"] == 0.3
+
+
+def _make_excel_bytes(rows: list[list[Any]]) -> bytes:
+    """构造一个简单 xlsx 文件字节流."""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    if ws is None:
+        raise RuntimeError("No active worksheet")
+    for row in rows:
+        ws.append(row)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+def test_parse_excel_document_imports_financial_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试 Excel 文档解析后导入 financial_reports."""
+    db = SessionLocal()
+    try:
+        tenant = Tenant(name="Excel Import Tenant", code="excel-import")
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+
+        user = User(
+            tenant_id=tenant.id,
+            username="exceltester",
+            email="excel@example.com",
+            hashed_password=get_password_hash("testpass"),
+            role="admin",
+            is_active="Y",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        storage_key = "docs/profit_2025_q2.xlsx"
+        excel_content = _make_excel_bytes(
+            [
+                ["year", "period", "revenue", "operating_cost", "net_profit"],
+                [2025, "Q2", 10_000_000, 6_000_000, 2_500_000],
+            ]
+        )
+        fake_storage = FakeStorageClient({storage_key: excel_content})
+        monkeypatch.setattr(
+            "app.tasks.document_tasks.get_storage_client",
+            lambda: fake_storage,
+        )
+
+        doc = _create_document(db, tenant, user, "profit_2025_q2.xlsx")
+        doc.storage_key = storage_key
+        db.commit()
+
+        result = parse_document_task.delay(doc.id).get()
+
+        assert result["status"] == "success"
+
+        db.refresh(doc)
+        assert doc.status == "success"
+        assert doc.parse_result is not None
+        assert doc.parse_result["format"] == "excel"
+        assert doc.parse_result["imported_count"] == 1
+
+        report = (
+            db.query(FinancialReport)
+            .filter(
+                FinancialReport.tenant_id == tenant.id,
+                FinancialReport.year == 2025,
+                FinancialReport.period == "Q2",
+            )
+            .first()
+        )
+        assert report is not None
+        assert report.revenue == 10_000_000.0
+        assert report.operating_cost == 6_000_000.0
+        assert report.net_profit == 2_500_000.0
+    finally:
+        db.close()
 
 
 def test_parse_csv_document_imports_financial_data(

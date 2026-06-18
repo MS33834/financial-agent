@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.database import SessionLocal
 from app.models.document import Document
+from app.parser import ExcelParser, PdfParser  # noqa: F401
+from app.parser.base import ParserRegistry
 from app.parser.csv_financial_parser import CsvFinancialParser
 from app.parser.simple_parser import SimpleDocumentParser
+from app.parser.utils import extract_period, extract_year
 from app.services.audit_service import log_action
 from app.services.financial_import_service import import_financial_records
 from app.storage import get_storage_client
@@ -66,13 +69,32 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
         _update_document_status(db, document, "processing")
 
         ext = _file_extension(document.filename)
+        storage = get_storage_client()
+        content = storage.download_bytes(document.storage_key)
 
         if ext == "csv":
-            parse_result, confidence = _parse_csv_document(db, document)
+            parse_result, records = _parse_csv_document(document, content)
+            confidence = parse_result.get("confidence", 0.95)
         else:
-            parser = SimpleDocumentParser(document)
-            parse_result = parser.parse()
-            confidence = parser.confidence()
+            parser = ParserRegistry.get_parser(ext) or SimpleDocumentParser()
+            parse_result = parser.parse(content, document.filename)
+            records = parse_result.get("records", [])
+            confidence = parse_result.get("confidence", 0.3)
+
+        # 将结构化记录导入财务数据表
+        if records:
+            default_year = parse_result.get("detected_year") or extract_year(document.filename)
+            default_period = parse_result.get("detected_period") or extract_period(
+                document.filename
+            )
+            imported = import_financial_records(
+                db=db,
+                tenant_id=document.tenant_id,
+                records=records,
+                default_year=default_year,
+                default_period=default_period or "annual",
+            )
+            parse_result["imported_count"] = len(imported)
 
         _update_document_status(
             db,
@@ -139,37 +161,22 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
 
 
 def _parse_csv_document(
-    db: Session,
     document: Document,
-) -> tuple[dict[str, Any], float]:
-    """解析 CSV 财务文件并导入数据库.
+    content: bytes,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """解析 CSV 财务文件.
 
     Returns:
-        (parse_result, confidence)
+        (parse_result, records)
     """
-    storage = get_storage_client()
-    content = storage.download_bytes(document.storage_key)
-
     parser = CsvFinancialParser(content)
     records = parser.parse()
 
-    simple = SimpleDocumentParser(document)
-    default_year = simple._extract_year(document.filename)
-    default_period = simple._extract_period(document.filename) or "annual"
-
-    imported = import_financial_records(
-        db=db,
-        tenant_id=document.tenant_id,
-        records=records,
-        default_year=default_year,
-        default_period=default_period,
-    )
-
     parse_result = {
         "format": "csv",
-        "imported_count": len(imported),
         "records": records,
-        "detected_year": default_year,
-        "detected_period": default_period,
+        "detected_year": extract_year(document.filename),
+        "detected_period": extract_period(document.filename),
+        "confidence": parser.confidence(),
     }
-    return parse_result, parser.confidence()
+    return parse_result, records
