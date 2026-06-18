@@ -53,6 +53,16 @@ class Settings(BaseSettings):
     ollama_host: str = Field(default="http://fa-ollama:11434", description="Ollama 服务地址")
     ollama_model: str = Field(default="qwen2.5:7b", description="默认 Ollama 模型")
 
+    # Dify 流程编排
+    dify_base_url: str | None = Field(
+        default=None, description="Dify API 基础地址，如 http://localhost:5001/v1"
+    )
+    dify_api_key: str | None = Field(default=None, description="Dify Workflow/API 密钥")
+    dify_workflow_id: str | None = Field(default=None, description="默认 Dify Workflow ID")
+    dify_tool_api_key: str | None = Field(
+        default=None, description="Dify 调用后端 Tools 时使用的 API Key"
+    )
+
     # 业务
     default_page_size: int = Field(default=20, description="默认分页大小")
     max_page_size: int = Field(default=100, description="最大分页大小")

@@ -12,7 +12,7 @@ from starlette.responses import Response
 from app.config import get_settings
 from app.database import Base, engine
 from app.logger import configure_logging, get_logger
-from app.routers import approvals, audit, auth, documents, health, queries, reports
+from app.routers import approvals, audit, auth, dify_tools, documents, health, queries, reports
 
 logger = get_logger(__name__)
 
@@ -93,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router)
     app.include_router(approvals.router)
     app.include_router(audit.router)
+    app.include_router(dify_tools.router)
 
     return app
 
