@@ -99,3 +99,27 @@ def auth_headers(test_user: User) -> dict[str, str]:
     """生成测试用户的认证头."""
     token = create_access_token({"sub": test_user.id})
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def viewer_user(db_session: Session, test_tenant: Tenant) -> User:
+    """创建只读角色的测试用户."""
+    user = User(
+        tenant_id=test_tenant.id,
+        username="viewer",
+        email="viewer@example.com",
+        hashed_password=get_password_hash("testpass"),
+        role="viewer",
+        is_active="Y",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def viewer_auth_headers(viewer_user: User) -> dict[str, str]:
+    """生成只读用户的认证头."""
+    token = create_access_token({"sub": viewer_user.id})
+    return {"Authorization": f"Bearer {token}"}

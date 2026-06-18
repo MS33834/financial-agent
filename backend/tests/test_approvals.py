@@ -152,3 +152,22 @@ def test_approve_non_reviewing_report(
         headers=auth_headers,
     )
     assert response.status_code == 400
+
+
+def test_viewer_cannot_approve(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    viewer_auth_headers: dict[str, str],
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试 viewer 角色无法执行审核."""
+    report_id = _create_report(client, auth_headers, monkeypatch)
+    _force_reviewing(db_session, report_id)
+
+    response = client.post(
+        f"/api/v1/approvals/{report_id}/action",
+        json={"action": "approve"},
+        headers=viewer_auth_headers,
+    )
+    assert response.status_code == 403

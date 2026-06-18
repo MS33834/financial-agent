@@ -5,8 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.roles import Role
 from app.database import get_db
-from app.dependencies import get_current_active_user
+from app.dependencies import require_role
 from app.models.user import User
 from app.schemas.approval import ApprovalAction, ApprovalResponse
 from app.schemas.common import DataResponse
@@ -21,7 +22,7 @@ def approval_action(
     report_id: str,
     action_data: ApprovalAction,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user),
+    user: User = Depends(require_role(Role.ADMIN, Role.AUDITOR)),
 ) -> dict[str, Any]:
     """对报告执行审核操作."""
     report = get_report(db=db, report_id=report_id, tenant_id=user.tenant_id)

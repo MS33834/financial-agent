@@ -5,8 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.roles import Role
 from app.database import get_db
-from app.dependencies import get_current_active_user, get_pagination
+from app.dependencies import get_current_active_user, get_pagination, require_role
 from app.models.user import User
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationParams
 from app.schemas.report import ReportCreate, ReportExportResponse, ReportResponse
@@ -90,7 +91,7 @@ def export_report_api(
     report_id: str,
     fmt: str = Query(default="markdown", alias="format", description="导出格式: markdown/json"),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user),
+    user: User = Depends(require_role(Role.ADMIN, Role.FINANCE_MANAGER, Role.AUDITOR)),
 ) -> dict[str, Any]:
     """导出报告到对象存储."""
     report = get_report(db=db, report_id=report_id, tenant_id=user.tenant_id)

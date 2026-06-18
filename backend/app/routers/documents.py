@@ -6,8 +6,9 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.roles import Role
 from app.database import get_db
-from app.dependencies import get_current_active_user, get_pagination
+from app.dependencies import get_current_active_user, get_pagination, require_role
 from app.models.user import User
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationParams
 from app.schemas.document import DocumentCreate, DocumentResponse
@@ -34,7 +35,7 @@ def _to_document_response(doc: Any) -> dict[str, Any]:
 def create_document(
     data: DocumentCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user),
+    user: User = Depends(require_role(Role.ADMIN, Role.FINANCE_MANAGER)),
 ) -> dict[str, Any]:
     """创建文档解析任务."""
     doc = create_document_task(db=db, data=data, user=user)
@@ -45,7 +46,7 @@ def create_document(
 async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user),
+    user: User = Depends(require_role(Role.ADMIN, Role.FINANCE_MANAGER)),
 ) -> dict[str, Any]:
     """上传文件并创建文档解析任务."""
     content = await file.read()

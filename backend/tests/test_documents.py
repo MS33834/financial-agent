@@ -87,6 +87,24 @@ def test_get_document_not_found(client: TestClient, auth_headers: dict[str, str]
     assert response.status_code == 404
 
 
+def test_viewer_cannot_upload(
+    client: TestClient,
+    viewer_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试 viewer 角色无法上传文档."""
+    monkeypatch.setattr("app.routers.documents.get_storage_client", lambda: FakeStorageClient())
+    monkeypatch.setattr(parse_document_task, "delay", lambda _document_id: None)
+
+    csv_content = b"year,period,revenue\n2025,Q2,10000000\n"
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("profit_2025_q2.csv", BytesIO(csv_content), "text/csv")},
+        headers=viewer_auth_headers,
+    )
+    assert response.status_code == 403
+
+
 def test_upload_document(
     client: TestClient,
     auth_headers: dict[str, str],

@@ -127,6 +127,22 @@ services:
     networks:
       - default
 
+  # ----------------------------------------------------------------
+  # 前端页面（React + Nginx）
+  # ----------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: financial-agent-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - default
+
 volumes:
   ollama_data:
   minio_data:

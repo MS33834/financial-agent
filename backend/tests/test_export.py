@@ -179,3 +179,23 @@ def test_export_report_wrong_status(
         headers=auth_headers,
     )
     assert response.status_code == 400
+
+
+def test_viewer_cannot_export(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    viewer_auth_headers: dict[str, str],
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试 viewer 角色无法导出报告."""
+    fake_storage = FakeStorageClient()
+    monkeypatch.setattr("app.routers.reports.get_storage_client", lambda: fake_storage)
+
+    report_id = _create_reviewing_report(client, auth_headers, db_session, monkeypatch)
+
+    response = client.post(
+        f"/api/v1/reports/{report_id}/export",
+        headers=viewer_auth_headers,
+    )
+    assert response.status_code == 403
