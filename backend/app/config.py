@@ -63,6 +63,10 @@ class Settings(BaseSettings):
         default=None, description="Dify 调用后端 Tools 时使用的 API Key"
     )
 
+    # IM 机器人
+    dingtalk_app_secret: str | None = Field(
+        default=None, description="钉钉机器人加签密钥"
+    )
     # 业务
     default_page_size: int = Field(default=20, description="默认分页大小")
     max_page_size: int = Field(default=100, description="最大分页大小")

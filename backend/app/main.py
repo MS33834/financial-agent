@@ -20,6 +20,7 @@ from app.routers import (
     dify_tools,
     documents,
     health,
+    im,
     queries,
     reports,
 )
@@ -105,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(audit.router)
     app.include_router(access_policies.router)
     app.include_router(dify_tools.router)
+    app.include_router(im.router)
 
     return app
 
