@@ -1,0 +1,132 @@
+# ==================================================================
+# 企业级财务智能体 - MVP Docker Compose
+# 包含：Dify（流程编排） + Ollama（本地模型） + MinIO（对象存储）
+# 说明：Dify 官方服务通过 include 引入，本项目仅添加自定义服务。
+# ==================================================================
+
+name: financial-agent
+
+include:
+  - vendor/dify/docker/docker-compose.yaml
+
+services:
+  # ----------------------------------------------------------------
+  # 本地大模型服务：Ollama
+  # ----------------------------------------------------------------
+  fa-ollama:
+    image: ollama/ollama:latest
+    container_name: financial-agent-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+
+  # ----------------------------------------------------------------
+  # 对象存储：MinIO（存储原始 PDF、解析结果、生成报告）
+  # 注意：服务名使用 fa-minio，避免与 Dify 的 milvus-minio 冲突
+  # ----------------------------------------------------------------
+  fa-minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    container_name: financial-agent-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ----------------------------------------------------------------
+  # 财务智能体后端 API
+  # ----------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: financial-agent-backend
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      MINIO_ENDPOINT: fa-minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-financial-agent}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db_postgres
+      - redis
+      - fa-minio
+    restart: unless-stopped
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ----------------------------------------------------------------
+  # 财务智能体后端 Celery Worker
+  # ----------------------------------------------------------------
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: financial-agent-worker
+    command: ["python", "scripts/worker.py"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      MINIO_ENDPOINT: fa-minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-financial-agent}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    depends_on:
+      - db_postgres
+      - redis
+      - fa-minio
+    restart: unless-stopped
+    networks:
+      - default
+
+volumes:
+  ollama_data:
+  minio_data:
