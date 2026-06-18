@@ -5,6 +5,7 @@
 """
 
 from collections.abc import Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,7 +27,7 @@ def _restore_settings() -> Generator[None, None, None]:
     get_settings.cache_clear()
 
 
-def _mock_response(json_data: dict, status_code: int = 200) -> MagicMock:
+def _mock_response(json_data: dict[str, Any], status_code: int = 200) -> MagicMock:
     mock = MagicMock()
     mock.status_code = status_code
     mock.json.return_value = json_data
@@ -37,13 +38,12 @@ def _mock_response(json_data: dict, status_code: int = 200) -> MagicMock:
 
 def test_dify_client_requires_config() -> None:
     """未配置 base_url/api_key 时应抛出异常."""
-    with patch.object(
-        get_settings(),
-        "dify_base_url",
-        None,
-    ), patch.object(get_settings(), "dify_api_key", None):
-        with pytest.raises(DifyClientError, match="DIFY_BASE_URL"):
-            DifyClient()
+    with (
+        patch.object(get_settings(), "dify_base_url", None),
+        patch.object(get_settings(), "dify_api_key", None),
+        pytest.raises(DifyClientError, match="DIFY_BASE_URL"),
+    ):
+        DifyClient()
 
 
 def test_dify_client_run_workflow(monkeypatch: pytest.MonkeyPatch) -> None:
