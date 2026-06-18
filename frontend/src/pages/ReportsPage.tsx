@@ -43,6 +43,9 @@ export default function ReportsPage() {
           <Link to="/documents">
             <button className="secondary">文档解析</button>
           </Link>
+          <Link to="/audit">
+            <button className="secondary">审计日志</button>
+          </Link>
           <button className="secondary" onClick={logout}>
             退出登录
           </button>

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import ReportsPage from './pages/ReportsPage.tsx'
 import DocumentsPage from './pages/DocumentsPage.tsx'
+import AuditPage from './pages/AuditPage.tsx'
 import './index.css'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,14 @@ function App() {
           element={
             <PrivateRoute>
               <DocumentsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/audit"
+          element={
+            <PrivateRoute>
+              <AuditPage />
             </PrivateRoute>
           }
         />

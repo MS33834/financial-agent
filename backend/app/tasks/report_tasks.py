@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.database import SessionLocal
 from app.models.report import Report
+from app.models.user import User
 from app.reporting.generator import ReportGenerationError, ReportGenerator
 from app.services.audit_service import log_action
 
@@ -14,6 +15,13 @@ from app.services.audit_service import log_action
 def _get_report(db: Session, report_id: str) -> Report | None:
     """按 ID 获取报告."""
     return db.query(Report).filter(Report.id == report_id).first()
+
+
+def _get_report_creator(db: Session, report: Report) -> User | None:
+    """获取报告创建者."""
+    if not report.created_by:
+        return None
+    return db.query(User).filter(User.id == report.created_by).first()
 
 
 def _update_report_status(
@@ -67,10 +75,12 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
             summary=result["summary"],
         )
 
+        creator = _get_report_creator(db, report)
         log_action(
             db=db,
             action="report.generate.success",
             resource=f"report://{report_id}",
+            user=creator,
         )
 
         return {
@@ -87,12 +97,14 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
                 "failed",
                 error_message=str(exc),
             )
+            creator = _get_report_creator(db, report)
             log_action(
                 db=db,
                 action="report.generate.failed",
                 resource=f"report://{report_id}",
                 result="failed",
                 reason=str(exc),
+                user=creator,
             )
         # 业务错误无需重试
         return {
@@ -110,12 +122,14 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
                 "failed",
                 error_message=str(exc),
             )
+            creator = _get_report_creator(db, report)
             log_action(
                 db=db,
                 action="report.generate.failed",
                 resource=f"report://{report_id}",
                 result="failed",
                 reason=str(exc),
+                user=creator,
             )
         raise self.retry(exc=exc) from exc
     finally:

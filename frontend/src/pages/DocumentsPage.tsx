@@ -41,6 +41,9 @@ export default function DocumentsPage() {
           <Link to="/">
             <button className="secondary">财务报告</button>
           </Link>
+          <Link to="/audit">
+            <button className="secondary">审计日志</button>
+          </Link>
         </div>
       </div>
 
