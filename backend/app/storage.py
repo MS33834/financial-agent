@@ -78,6 +78,24 @@ class StorageClient:
         base = self.public_url or f"http://{self.client._endpoint.url.netloc}"  # type: ignore[attr-defined]
         return f"{base}/{self.bucket}/{key}"
 
+    def download_bytes(self, key: str) -> bytes:
+        """下载对象内容.
+
+        Args:
+            key: 对象 key。
+
+        Returns:
+            对象原始字节。
+
+        Raises:
+            StorageClientError: 下载失败时抛出。
+        """
+        try:
+            response = self.client.get_object(self.bucket, key)
+            return response.read()
+        except S3Error as exc:
+            raise StorageClientError(f"下载失败: {exc}") from exc
+
 
 @lru_cache
 def get_storage_client() -> StorageClient:

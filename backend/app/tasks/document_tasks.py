@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.database import SessionLocal
 from app.models.document import Document
+from app.parser.csv_financial_parser import CsvFinancialParser
 from app.parser.simple_parser import SimpleDocumentParser
 from app.services.audit_service import log_action
+from app.services.financial_import_service import import_financial_records
+from app.storage import get_storage_client
 
 
 def _get_document(db: Session, document_id: str) -> Document | None:
@@ -35,6 +38,11 @@ def _update_document_status(
     db.commit()
 
 
+def _file_extension(filename: str) -> str:
+    """获取文件扩展名."""
+    return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10)  # type: ignore[untyped-decorator]
 def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
     """异步解析文档任务.
@@ -53,9 +61,14 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
 
         _update_document_status(db, document, "processing")
 
-        parser = SimpleDocumentParser(document)
-        parse_result = parser.parse()
-        confidence = parser.confidence()
+        ext = _file_extension(document.filename)
+
+        if ext == "csv":
+            parse_result, confidence = _parse_csv_document(db, document)
+        else:
+            parser = SimpleDocumentParser(document)
+            parse_result = parser.parse()
+            confidence = parser.confidence()
 
         _update_document_status(
             db,
@@ -75,6 +88,29 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
             "document_id": document_id,
             "status": "success",
             "confidence": confidence,
+        }
+    except ValueError as exc:
+        # 业务错误不重试
+        document = _get_document(db, document_id)
+        if document is not None:
+            _update_document_status(
+                db,
+                document,
+                "failed",
+                error_message=str(exc),
+            )
+            log_action(
+                db=db,
+                action="document.parse.failed",
+                resource=f"document://{document_id}",
+                result="failed",
+                reason=str(exc),
+            )
+        return {
+            "document_id": document_id,
+            "status": "failed",
+            "error": str(exc),
+            "retry": False,
         }
     except Exception as exc:
         document = _get_document(db, document_id)
@@ -96,3 +132,40 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
         raise self.retry(exc=exc) from exc
     finally:
         db.close()
+
+
+def _parse_csv_document(
+    db: Session,
+    document: Document,
+) -> tuple[dict[str, Any], float]:
+    """解析 CSV 财务文件并导入数据库.
+
+    Returns:
+        (parse_result, confidence)
+    """
+    storage = get_storage_client()
+    content = storage.download_bytes(document.storage_key)
+
+    parser = CsvFinancialParser(content)
+    records = parser.parse()
+
+    simple = SimpleDocumentParser(document)
+    default_year = simple._extract_year(document.filename)
+    default_period = simple._extract_period(document.filename) or "annual"
+
+    imported = import_financial_records(
+        db=db,
+        tenant_id=document.tenant_id,
+        records=records,
+        default_year=default_year,
+        default_period=default_period,
+    )
+
+    parse_result = {
+        "format": "csv",
+        "imported_count": len(imported),
+        "records": records,
+        "detected_year": default_year,
+        "detected_period": default_period,
+    }
+    return parse_result, parser.confidence()

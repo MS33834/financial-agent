@@ -1,14 +1,41 @@
 """文档解析异步任务测试."""
 
+from typing import Any
+
+import pytest
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.document import Document
+from app.models.financial_report import FinancialReport
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.parser.simple_parser import SimpleDocumentParser
 from app.security import get_password_hash
 from app.tasks.document_tasks import parse_document_task
+
+
+class FakeStorageClient:
+    """测试用对象存储客户端."""
+
+    def __init__(self, stored: dict[str, bytes] | None = None) -> None:
+        """初始化."""
+        self.stored = stored or {}
+
+    def upload_bytes(
+        self,
+        key: str,
+        data: bytes,
+        _content_type: str = "application/octet-stream",
+        _metadata: dict[str, Any] | None = None,
+    ) -> str:
+        """模拟上传."""
+        self.stored[key] = data
+        return f"http://fake-minio/financial-agent/{key}"
+
+    def download_bytes(self, key: str) -> bytes:
+        """模拟下载."""
+        return self.stored[key]
 
 
 def _create_document(db: Session, tenant: Tenant, user: User, filename: str) -> Document:
@@ -94,3 +121,66 @@ def test_simple_parser_extracts_metadata() -> None:
     assert result["detected_year"] == 2024
     assert result["detected_period"] == "H1"
     assert parser.confidence() == 0.6
+
+
+def test_parse_csv_document_imports_financial_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试 CSV 文档解析后导入 financial_reports."""
+    db = SessionLocal()
+    try:
+        tenant = Tenant(name="CSV Import Tenant", code="csv-import")
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+
+        user = User(
+            tenant_id=tenant.id,
+            username="csvtester",
+            email="csv@example.com",
+            hashed_password=get_password_hash("testpass"),
+            role="admin",
+            is_active="Y",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        storage_key = "docs/profit_2025_q2.csv"
+        csv_content = b"year,period,revenue,operating_cost,net_profit\n2025,Q2,10000000,6000000,2500000\n"
+        fake_storage = FakeStorageClient({storage_key: csv_content})
+        monkeypatch.setattr(
+            "app.tasks.document_tasks.get_storage_client",
+            lambda: fake_storage,
+        )
+
+        doc = _create_document(db, tenant, user, "profit_2025_q2.csv")
+        # 确保 storage_key 与 fake storage 一致
+        doc.storage_key = storage_key
+        db.commit()
+
+        result = parse_document_task.delay(doc.id).get()
+
+        assert result["status"] == "success"
+
+        db.refresh(doc)
+        assert doc.status == "success"
+        assert doc.parse_result is not None
+        assert doc.parse_result["format"] == "csv"
+        assert doc.parse_result["imported_count"] == 1
+
+        report = (
+            db.query(FinancialReport)
+            .filter(
+                FinancialReport.tenant_id == tenant.id,
+                FinancialReport.year == 2025,
+                FinancialReport.period == "Q2",
+            )
+            .first()
+        )
+        assert report is not None
+        assert report.revenue == 10_000_000.0
+        assert report.operating_cost == 6_000_000.0
+        assert report.net_profit == 2_500_000.0
+    finally:
+        db.close()

@@ -1,8 +1,9 @@
 """文档解析任务路由."""
 
 from typing import Any
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -11,6 +12,7 @@ from app.models.user import User
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationParams
 from app.schemas.document import DocumentCreate, DocumentResponse
 from app.services.document_service import create_document_task, get_document, list_documents
+from app.storage import get_storage_client
 
 router = APIRouter(prefix="/api/v1/documents", tags=["Documents"])
 
@@ -36,6 +38,32 @@ def create_document(
 ) -> dict[str, Any]:
     """创建文档解析任务."""
     doc = create_document_task(db=db, data=data, user=user)
+    return {"code": 0, "message": "ok", "data": _to_document_response(doc)}
+
+
+@router.post("/upload", response_model=DataResponse[DocumentResponse], status_code=status.HTTP_201_CREATED)
+async def upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_active_user),
+) -> dict[str, Any]:
+    """上传文件并创建文档解析任务."""
+    content = await file.read()
+    filename = file.filename or "unknown"
+
+    storage = get_storage_client()
+    key = f"documents/{user.tenant_id}/{uuid4()}/{filename}"
+    storage.upload_bytes(
+        key=key,
+        data=content,
+        content_type=file.content_type or "application/octet-stream",
+    )
+
+    doc = create_document_task(
+        db=db,
+        data=DocumentCreate(filename=filename, storage_key=key),
+        user=user,
+    )
     return {"code": 0, "message": "ok", "data": _to_document_response(doc)}
 
 
