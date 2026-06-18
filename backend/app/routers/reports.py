@@ -26,6 +26,7 @@ def _to_report_response(report: Any) -> dict[str, Any]:
         "content": report.content,
         "content_url": report.content_url,
         "summary": report.summary,
+        "error_message": report.error_message,
         "created_at": report.created_at.isoformat() if report.created_at else None,
     }
 

@@ -43,7 +43,7 @@ class Report(UUIDBase):
         String(32),
         nullable=False,
         default="draft",
-        comment="状态: draft/pending/reviewing/approved/rejected/published",
+        comment="状态: draft/pending/processing/reviewing/approved/rejected/published/failed",
     )
     content: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, nullable=True, comment="报告内容（JSON）"
@@ -53,4 +53,7 @@ class Report(UUIDBase):
     )
     summary: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="报告摘要"
+    )
+    error_message: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="生成失败时的错误信息"
     )

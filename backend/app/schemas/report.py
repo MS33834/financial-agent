@@ -24,6 +24,7 @@ class ReportResponse(BaseModel):
     content: dict[str, Any] | None = Field(default=None, description="报告内容")
     content_url: str | None = Field(default=None, description="导出文件地址")
     summary: str | None = Field(default=None, description="摘要")
+    error_message: str | None = Field(default=None, description="生成错误信息")
     created_at: str = Field(description="创建时间")
 
 

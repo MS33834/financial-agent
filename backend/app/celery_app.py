@@ -14,7 +14,7 @@ celery_app = Celery(
     "financial_agent",
     broker=settings.celery_broker_url or settings.redis_url,
     backend=settings.celery_result_backend or settings.redis_url,
-    include=["app.tasks.document_tasks"],
+    include=["app.tasks.document_tasks", "app.tasks.report_tasks"],
 )
 
 celery_app.conf.update(

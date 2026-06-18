@@ -1,11 +1,14 @@
 """报告生成任务服务."""
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.report import ReportCreate
 from app.services.audit_service import log_action
+from app.tasks.report_tasks import generate_report_task
 
 
 def create_report_task(
@@ -13,14 +16,14 @@ def create_report_task(
     data: ReportCreate,
     user: User,
 ) -> Report:
-    """创建报告生成任务."""
+    """创建报告生成任务并触发异步生成."""
     report = Report(
         tenant_id=user.tenant_id,
         created_by=user.id,
         title=data.title,
         report_type=data.report_type,
         parameters=data.parameters,
-        status="draft",
+        status="pending",
     )
     db.add(report)
     db.commit()
@@ -32,6 +35,11 @@ def create_report_task(
         resource=f"report://{report.id}",
         user=user,
     )
+
+    generate_report_task.delay(report.id)
+
+    # 异步任务可能已更新数据库，刷新后再返回
+    db.refresh(report)
     return report
 
 
@@ -53,7 +61,12 @@ def list_reports(
     """分页查询报告列表."""
     query = db.query(Report).filter(Report.tenant_id == tenant_id)
     total = query.count()
-    items = query.order_by(Report.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = (
+        query.order_by(Report.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
     return items, total
 
 
@@ -63,6 +76,22 @@ def update_report_status(
     status: str,
 ) -> Report:
     """更新报告状态."""
+    report.status = status
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+def save_report_result(
+    db: Session,
+    report: Report,
+    content: dict[str, Any],
+    summary: str,
+    status: str = "reviewing",
+) -> Report:
+    """保存报告生成结果."""
+    report.content = content
+    report.summary = summary
     report.status = status
     db.commit()
     db.refresh(report)
