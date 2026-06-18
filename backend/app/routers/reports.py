@@ -2,15 +2,17 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_active_user, get_pagination
 from app.models.user import User
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationParams
-from app.schemas.report import ReportCreate, ReportResponse
+from app.schemas.report import ReportCreate, ReportExportResponse, ReportResponse
+from app.services.export_service import ExportFormatError, export_report
 from app.services.report_service import create_report_task, get_report, list_reports
+from app.storage import StorageClientError, get_storage_client
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
 
@@ -81,3 +83,53 @@ def get_report_api(
             detail="Report not found",
         )
     return {"code": 0, "message": "ok", "data": _to_report_response(report)}
+
+
+@router.post("/{report_id}/export", response_model=DataResponse[ReportExportResponse])
+def export_report_api(
+    report_id: str,
+    fmt: str = Query(default="markdown", alias="format", description="导出格式: markdown/json"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_active_user),
+) -> dict[str, Any]:
+    """导出报告到对象存储."""
+    report = get_report(db=db, report_id=report_id, tenant_id=user.tenant_id)
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found",
+        )
+
+    if report.status not in ("reviewing", "approved"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="只有 reviewing 或 approved 状态的报告可导出",
+        )
+
+    try:
+        url = export_report(
+            db=db,
+            report=report,
+            storage=get_storage_client(),
+            user=user,
+            fmt=fmt,
+        )
+    except ExportFormatError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except StorageClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    db.commit()
+    db.refresh(report)
+
+    return {
+        "code": 0,
+        "message": "ok",
+        "data": {"content_url": url, "format": fmt},
+    }

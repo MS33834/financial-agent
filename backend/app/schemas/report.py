@@ -34,3 +34,10 @@ class ReportListItem(ReportResponse):
     """报告列表项."""
 
     pass
+
+
+class ReportExportResponse(BaseModel):
+    """报告导出响应."""
+
+    content_url: str = Field(description="导出文件访问地址")
+    format: str = Field(description="导出格式")
