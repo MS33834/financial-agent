@@ -57,7 +57,11 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
     try:
         document = _get_document(db, document_id)
         if document is None:
-            return {"status": "failed", "error": f"Document {document_id} not found", "retry": False}
+            return {
+                "status": "failed",
+                "error": f"Document {document_id} not found",
+                "retry": False,
+            }
 
         _update_document_status(db, document, "processing")
 

@@ -45,11 +45,7 @@ def create_report_task(
 
 def get_report(db: Session, report_id: str, tenant_id: str) -> Report | None:
     """按 ID 和租户获取报告."""
-    return (
-        db.query(Report)
-        .filter(Report.id == report_id, Report.tenant_id == tenant_id)
-        .first()
-    )
+    return db.query(Report).filter(Report.id == report_id, Report.tenant_id == tenant_id).first()
 
 
 def list_reports(

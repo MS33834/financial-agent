@@ -9,7 +9,7 @@ def test_login_success(client: TestClient, test_user: User) -> None:
     """测试登录成功."""
     response = client.post(
         "/api/v1/auth/login",
-        data={"username": test_user.username, "password": "testpass"},
+        json={"username": test_user.username, "password": "testpass"},
     )
     assert response.status_code == 200
     data = response.json()["data"]
@@ -21,7 +21,7 @@ def test_login_wrong_password(client: TestClient, test_user: User) -> None:
     """测试密码错误."""
     response = client.post(
         "/api/v1/auth/login",
-        data={"username": test_user.username, "password": "wrongpass"},
+        json={"username": test_user.username, "password": "wrongpass"},
     )
     assert response.status_code == 401
 

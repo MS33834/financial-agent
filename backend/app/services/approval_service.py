@@ -55,9 +55,7 @@ def record_approval(
     new_status = _status_for_action(action)
 
     if report.status != "reviewing":
-        raise ApprovalError(
-            f"当前报告状态为 {report.status}，仅 reviewing 状态的报告可执行审核"
-        )
+        raise ApprovalError(f"当前报告状态为 {report.status}，仅 reviewing 状态的报告可执行审核")
 
     approval = Approval(
         report_id=report.id,

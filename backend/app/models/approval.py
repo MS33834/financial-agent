@@ -30,6 +30,4 @@ class Approval(UUIDBase):
         nullable=False,
         comment="操作: submit/approve/reject/modify",
     )
-    comments: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="审核意见"
-    )
+    comments: Mapped[str | None] = mapped_column(Text, nullable=True, comment="审核意见")

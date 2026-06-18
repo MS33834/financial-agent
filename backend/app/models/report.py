@@ -27,9 +27,7 @@ class Report(UUIDBase):
         nullable=True,
     )
 
-    title: Mapped[str] = mapped_column(
-        String(255), nullable=False, comment="报告标题"
-    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, comment="报告标题")
     report_type: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
@@ -51,9 +49,7 @@ class Report(UUIDBase):
     content_url: Mapped[str | None] = mapped_column(
         String(512), nullable=True, comment="导出文件存储地址"
     )
-    summary: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="报告摘要"
-    )
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="报告摘要")
     error_message: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="生成失败时的错误信息"
     )

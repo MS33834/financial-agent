@@ -18,14 +18,8 @@ class Tenant(UUIDBase):
 
     __tablename__ = "tenants"
 
-    name: Mapped[str] = mapped_column(
-        String(128), nullable=False, index=True, comment="租户名称"
-    )
-    code: Mapped[str] = mapped_column(
-        String(64), unique=True, nullable=False, comment="租户编码"
-    )
-    description: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="描述"
-    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True, comment="租户名称")
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, comment="租户编码")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="描述")
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant")

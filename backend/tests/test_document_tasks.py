@@ -147,7 +147,9 @@ def test_parse_csv_document_imports_financial_data(
         db.refresh(user)
 
         storage_key = "docs/profit_2025_q2.csv"
-        csv_content = b"year,period,revenue,operating_cost,net_profit\n2025,Q2,10000000,6000000,2500000\n"
+        csv_content = (
+            b"year,period,revenue,operating_cost,net_profit\n2025,Q2,10000000,6000000,2500000\n"
+        )
         fake_storage = FakeStorageClient({storage_key: csv_content})
         monkeypatch.setattr(
             "app.tasks.document_tasks.get_storage_client",

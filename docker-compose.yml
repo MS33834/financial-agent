@@ -1,17 +1,74 @@
 # ==================================================================
 # 企业级财务智能体 - MVP Docker Compose
-# 包含：Dify（流程编排） + Ollama（本地模型） + MinIO（对象存储）
-# 说明：Dify 官方服务通过 include 引入，本项目仅添加自定义服务。
+# 包含：PostgreSQL + Redis + MinIO + Ollama + 后端 API + 前端
+# 说明：Dify 流程编排服务请使用 vendor/dify/docker/docker-compose.yaml
+#       单独启动；本文件默认仅启动财务智能体核心链路。
 # ==================================================================
 
 name: financial-agent
 
-include:
-  - vendor/dify/docker/docker-compose.yaml
-
 services:
   # ----------------------------------------------------------------
-  # 本地大模型服务：Ollama
+  # 数据库：PostgreSQL
+  # ----------------------------------------------------------------
+  db_postgres:
+    image: postgres:16-alpine
+    container_name: financial-agent-postgres
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-difyai123456}
+      POSTGRES_DB: ${DB_DATABASE:-dify}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - default
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-h",
+          "db_postgres",
+          "-U",
+          "${DB_USERNAME:-postgres}",
+          "-d",
+          "${DB_DATABASE:-dify}",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ----------------------------------------------------------------
+  # 缓存 / 消息队列：Redis
+  # ----------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: financial-agent-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-difyai123456}
+    volumes:
+      - redis_data:/data
+    command: redis-server --requirepass ${REDIS_PASSWORD:-difyai123456}
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - default
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ----------------------------------------------------------------
+  # 本地大模型服务：Ollama（可选，当前核心链路不强制依赖）
   # ----------------------------------------------------------------
   fa-ollama:
     image: ollama/ollama:latest
@@ -38,7 +95,6 @@ services:
 
   # ----------------------------------------------------------------
   # 对象存储：MinIO（存储原始 PDF、解析结果、生成报告）
-  # 注意：服务名使用 fa-minio，避免与 Dify 的 milvus-minio 冲突
   # ----------------------------------------------------------------
   fa-minio:
     image: minio/minio:RELEASE.2024-06-13T22-53-53Z
@@ -80,14 +136,18 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
       MINIO_BUCKET: ${MINIO_BUCKET:-financial-agent}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
     ports:
       - "8000:8000"
     depends_on:
-      - db_postgres
-      - redis
-      - fa-minio
+      db_postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      fa-minio:
+        condition: service_started
     restart: unless-stopped
     networks:
       - default
@@ -117,12 +177,16 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
       MINIO_BUCKET: ${MINIO_BUCKET:-financial-agent}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
     depends_on:
-      - db_postgres
-      - redis
-      - fa-minio
+      db_postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      fa-minio:
+        condition: service_started
     restart: unless-stopped
     networks:
       - default
@@ -143,6 +207,12 @@ services:
     networks:
       - default
 
+networks:
+  default:
+    driver: bridge
+
 volumes:
   ollama_data:
   minio_data:
+  postgres_data:
+  redis_data:

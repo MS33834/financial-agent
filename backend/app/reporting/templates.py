@@ -10,9 +10,9 @@ from typing import Any
 ProfitTemplate = {
     "title": Template("${year}年${period_label}利润表"),
     "summary": Template(
-        "${year}年${period_label}，公司实现营业收入 ${revenue:,.2f} 元，"
-        "营业成本 ${operating_cost:,.2f} 元，营业利润 ${operating_profit:,.2f} 元，"
-        "净利润 ${net_profit:,.2f} 元。"
+        "${year}年${period_label}，公司实现营业收入 ${revenue_fmt} 元，"
+        "营业成本 ${operating_cost_fmt} 元，营业利润 ${operating_profit_fmt} 元，"
+        "净利润 ${net_profit_fmt} 元。"
     ),
     "sections": [
         {"name": "营业收入", "metric": "revenue"},
@@ -25,8 +25,8 @@ ProfitTemplate = {
 BalanceTemplate = {
     "title": Template("${year}年${period_label}资产负债表"),
     "summary": Template(
-        "截至 ${year}年${period_label}，公司总资产 ${total_assets:,.2f} 元，"
-        "总负债 ${total_liabilities:,.2f} 元，所有者权益 ${owner_equity:,.2f} 元。"
+        "截至 ${year}年${period_label}，公司总资产 ${total_assets_fmt} 元，"
+        "总负债 ${total_liabilities_fmt} 元，所有者权益 ${owner_equity_fmt} 元。"
     ),
     "sections": [
         {"name": "总资产", "metric": "total_assets"},
@@ -38,8 +38,7 @@ BalanceTemplate = {
 CashTemplate = {
     "title": Template("${year}年${period_label}现金流量表"),
     "summary": Template(
-        "${year}年${period_label}，公司经营活动产生的现金流量净额为 "
-        "${cash_flow_operating:,.2f} 元。"
+        "${year}年${period_label}，公司经营活动产生的现金流量净额为 ${cash_flow_operating_fmt} 元。"
     ),
     "sections": [
         {"name": "经营活动现金流", "metric": "cash_flow_operating"},
@@ -72,6 +71,11 @@ def _format_value(value: float | None) -> float:
     return 0.0 if value is None else float(value)
 
 
+def _format_number(value: float | None) -> str:
+    """将数值格式化为千分位保留两位小数的字符串."""
+    return f"{_format_value(value):,.2f}"
+
+
 def render_report(report_type: str, data: dict[str, Any]) -> dict[str, Any]:
     """根据报告类型和指标数据渲染报告内容.
 
@@ -96,13 +100,21 @@ def render_report(report_type: str, data: dict[str, Any]) -> dict[str, Any]:
         "year": data.get("year", ""),
         "period_label": period_label,
         "revenue": _format_value(data.get("revenue")),
+        "revenue_fmt": _format_number(data.get("revenue")),
         "operating_cost": _format_value(data.get("operating_cost")),
+        "operating_cost_fmt": _format_number(data.get("operating_cost")),
         "operating_profit": _format_value(data.get("operating_profit")),
+        "operating_profit_fmt": _format_number(data.get("operating_profit")),
         "net_profit": _format_value(data.get("net_profit")),
+        "net_profit_fmt": _format_number(data.get("net_profit")),
         "total_assets": _format_value(data.get("total_assets")),
+        "total_assets_fmt": _format_number(data.get("total_assets")),
         "total_liabilities": _format_value(data.get("total_liabilities")),
+        "total_liabilities_fmt": _format_number(data.get("total_liabilities")),
         "owner_equity": _format_value(data.get("owner_equity")),
+        "owner_equity_fmt": _format_number(data.get("owner_equity")),
         "cash_flow_operating": _format_value(data.get("cash_flow_operating")),
+        "cash_flow_operating_fmt": _format_number(data.get("cash_flow_operating")),
     }
 
     sections = [

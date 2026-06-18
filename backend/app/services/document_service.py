@@ -57,5 +57,10 @@ def list_documents(
     """分页查询文档列表."""
     query = db.query(Document).filter(Document.tenant_id == tenant_id)
     total = query.count()
-    items = query.order_by(Document.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = (
+        query.order_by(Document.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
     return items, total

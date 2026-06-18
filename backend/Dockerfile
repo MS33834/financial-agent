@@ -34,6 +34,10 @@ COPY alembic/ ./alembic/
 COPY scripts/ ./scripts/
 COPY alembic.ini ./
 
+# 确保启动脚本可执行
+RUN chmod +x ./scripts/entrypoint.sh
+
 EXPOSE 8000
 
+ENTRYPOINT ["./scripts/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

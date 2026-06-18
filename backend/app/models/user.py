@@ -25,22 +25,14 @@ class User(UUIDBase):
         index=True,
         comment="所属租户",
     )
-    username: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=True, comment="用户名"
-    )
+    username: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="用户名")
     email: Mapped[str | None] = mapped_column(String(128), nullable=True, comment="邮箱")
-    hashed_password: Mapped[str] = mapped_column(
-        String(255), nullable=False, comment="密码哈希"
-    )
-    role: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="viewer", comment="角色"
-    )
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False, comment="密码哈希")
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="viewer", comment="角色")
     is_active: Mapped[str] = mapped_column(
         String(1), nullable=False, default="Y", comment="是否启用"
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="users")
 
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "username", name="uq_tenant_username"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "username", name="uq_tenant_username"),)

@@ -47,10 +47,7 @@ class RuleBasedText2SQLBackend(Text2SQLBackend):
         if period is not None:
             conditions.append(f"period = '{period}'")
 
-        sql = (
-            f"SELECT {column} FROM financial_reports "
-            f"WHERE {' AND '.join(conditions)}"
-        )
+        sql = f"SELECT {column} FROM financial_reports WHERE {' AND '.join(conditions)}"
 
         return NL2SQLResult(
             sql=sql,

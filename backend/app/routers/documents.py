@@ -42,7 +42,9 @@ def create_document(
     return {"code": 0, "message": "ok", "data": _to_document_response(doc)}
 
 
-@router.post("/upload", response_model=DataResponse[DocumentResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload", response_model=DataResponse[DocumentResponse], status_code=status.HTTP_201_CREATED
+)
 async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),

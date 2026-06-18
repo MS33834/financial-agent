@@ -27,7 +27,9 @@ class Settings(BaseSettings):
 
     # 安全
     secret_key: str = Field(description="JWT / 加密密钥")
-    access_token_expire_minutes: int = Field(default=60 * 24, description="Access Token 有效期（分钟）")
+    access_token_expire_minutes: int = Field(
+        default=60 * 24, description="Access Token 有效期（分钟）"
+    )
     algorithm: str = Field(default="HS256", description="JWT 算法")
 
     # 数据库

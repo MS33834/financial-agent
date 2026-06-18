@@ -27,18 +27,12 @@ class Document(UUIDBase):
         nullable=True,
     )
 
-    filename: Mapped[str] = mapped_column(
-        String(255), nullable=False, comment="原始文件名"
-    )
-    storage_key: Mapped[str] = mapped_column(
-        String(512), nullable=False, comment="对象存储 key"
-    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False, comment="原始文件名")
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False, comment="对象存储 key")
     file_size: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="文件大小（字节）"
     )
-    mime_type: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, comment="文件类型"
-    )
+    mime_type: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="文件类型")
 
     status: Mapped[str] = mapped_column(
         String(32),
@@ -46,12 +40,8 @@ class Document(UUIDBase):
         default="pending",
         comment="状态: pending/processing/success/failed",
     )
-    confidence: Mapped[float | None] = mapped_column(
-        Float, nullable=True, comment="解析置信度"
-    )
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True, comment="解析置信度")
     parse_result: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, nullable=True, comment="解析结果（结构化数据）"
     )
-    error_message: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="错误信息"
-    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True, comment="错误信息")

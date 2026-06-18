@@ -37,9 +37,7 @@ def bootstrap() -> None:
         db.commit()
         db.refresh(tenant)
 
-        existing_user = (
-            db.query(User).filter(User.username == DEFAULT_ADMIN_USERNAME).first()
-        )
+        existing_user = db.query(User).filter(User.username == DEFAULT_ADMIN_USERNAME).first()
         if existing_user:
             print(f"User '{DEFAULT_ADMIN_USERNAME}' already exists. Skipping.")
             return

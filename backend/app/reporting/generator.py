@@ -44,9 +44,7 @@ class ReportGenerator:
 
         financial = self._fetch_financial(report.tenant_id, year, period)
         if financial is None:
-            raise ReportGenerationError(
-                f"未找到 {year} 年 {period} 期间的财务数据"
-            )
+            raise ReportGenerationError(f"未找到 {year} 年 {period} 期间的财务数据")
 
         data = {
             "year": year,
