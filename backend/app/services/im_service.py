@@ -48,6 +48,23 @@ def _call_api(method: str, path: str, token: str, json: dict[str, Any] | None = 
     return data
 
 
+def _format_api_error(exc: IMServiceError) -> str:
+    """将 API 调用异常转换为可操作的提示文本.
+
+    根据状态码与常见业务错误给出针对性建议，实现简单的错误自省。
+    """
+    text = str(exc)
+    if "403" in text or "Permission denied" in text:
+        return "操作失败：当前用户权限不足，请联系管理员开通审批或查询权限。"
+    if "404" in text or "Report not found" in text:
+        return "操作失败：未找到指定资源，请检查 report_id 是否正确。"
+    if "仅 reviewing 状态的报告可执行审核" in text:
+        return "操作失败：该报告不处于待审核状态，无需审批。可通过 /pending 查看待审报告。"
+    if "无效的审核动作" in text:
+        return "操作失败：审核动作仅支持 approve（通过）、reject（驳回）、modify（退回修改）。"
+    return f"操作失败：{text}"
+
+
 def handle_command(command: BotCommand, token: str) -> str:
     """处理机器人命令.
 
@@ -58,6 +75,14 @@ def handle_command(command: BotCommand, token: str) -> str:
     Returns:
         回复文本。
     """
+    try:
+        return _handle_command(command, token)
+    except IMServiceError as exc:
+        return _format_api_error(exc)
+
+
+def _handle_command(command: BotCommand, token: str) -> str:
+    """实际命令处理逻辑."""
     if command.name == "query":
         question = " ".join(command.args)
         if not question:
@@ -77,9 +102,10 @@ def handle_command(command: BotCommand, token: str) -> str:
         )
         return format_report_result(result)
 
-    if command.name == "approve":
-        report_id = command.kwargs.get("report_id")
-        action = command.kwargs.get("action", "approve")
+    if command.name in {"approve", "reject", "modify"}:
+        # /approve 命令兼容 /reject、/modify 快捷语法
+        report_id = command.kwargs.get("report_id") or (command.args[0] if command.args else "")
+        action = command.name if command.name != "approve" else command.kwargs.get("action", "approve")
         comments = command.kwargs.get("comment") or command.kwargs.get("comments")
         if not report_id:
             return "请输入 report_id，例如：/approve report_id=xxx action=approve"
@@ -91,4 +117,14 @@ def handle_command(command: BotCommand, token: str) -> str:
         )
         return format_approval_result({"success": True, "data": result})
 
-    return f"未知命令：/{command.name}\n支持：/query、/report、/approve"
+    if command.name == "pending":
+        result = _call_api("GET", "/api/v1/reports?status=reviewing&page_size=10", token)
+        items = result.get("items", [])
+        if not items:
+            return "当前没有待审核的报告。"
+        lines = ["待审核报告："]
+        for item in items:
+            lines.append(f"- ID：{item.get('id')} | 标题：{item.get('title')} | 类型：{item.get('report_type')}")
+        return "\n".join(lines)
+
+    return f"未知命令：/{command.name}\n支持：/query、/report、/pending、/approve、/reject、/modify"

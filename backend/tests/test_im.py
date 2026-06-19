@@ -3,6 +3,7 @@
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -12,10 +13,12 @@ from sqlalchemy.orm import Session
 from app.im.commands import format_approval_result, parse_command
 from app.im.dingtalk import DingTalkBot
 from app.im.feishu import FeishuBot
+from app.models.report import Report
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.routers.im import _get_user_by_im_id
 from app.security import get_password_hash
+from app.tasks.report_tasks import generate_report_task
 
 
 @pytest.fixture
@@ -318,3 +321,171 @@ def test_feishu_webhook_user_found_by_attributes(
         )
         assert resp.status_code == 200
         assert resp.json()["content"]["text"] == "查询结果"
+
+
+def _create_reviewing_report(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> str:
+    """创建报告并将其置为 reviewing 状态，返回 report_id."""
+    monkeypatch.setattr(generate_report_task, "delay", lambda _report_id: None)
+
+    resp = client.post(
+        "/api/v1/reports",
+        json={"title": "IM 审批测试", "report_type": "cash"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    report_id = cast(str, resp.json()["data"]["id"])
+
+    report = db_session.query(Report).filter(Report.id == report_id).first()
+    assert report is not None
+    report.status = "reviewing"
+    db_session.commit()
+    return report_id
+
+
+def test_dingtalk_webhook_approve_report(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """通过钉钉机器人审批报告."""
+    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.commit()
+    report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": f"/approve report_id={report_id} comment=同意"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "approve" in resp.json()["text"]["content"]
+
+    report_resp = client.get(f"/api/v1/reports/{report_id}", headers=auth_headers)
+    assert report_resp.json()["data"]["status"] == "approved"
+
+
+def test_dingtalk_webhook_reject_report(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """通过钉钉机器人驳回报告."""
+    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.commit()
+    report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": f"/reject report_id={report_id} comment=数据有误"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "reject" in resp.json()["text"]["content"]
+
+    report_resp = client.get(f"/api/v1/reports/{report_id}", headers=auth_headers)
+    assert report_resp.json()["data"]["status"] == "rejected"
+
+
+def test_dingtalk_webhook_pending_reports(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """通过钉钉机器人查看待审报告列表."""
+    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.commit()
+    report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={"text": {"content": "/pending"}, "senderStaffId": "ding_approver"},
+        )
+        assert resp.status_code == 200
+        assert report_id in resp.json()["text"]["content"]
+
+
+def test_dingtalk_webhook_approve_non_reviewing_report(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """对非 reviewing 状态报告审批返回友好提示."""
+    monkeypatch.setattr(generate_report_task, "delay", lambda _report_id: None)
+    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.commit()
+
+    resp = client.post(
+        "/api/v1/reports",
+        json={"title": "未生成报告", "report_type": "cash"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    report_id = resp.json()["data"]["id"]
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": f"/approve report_id={report_id}"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "不处于待审核状态" in resp.json()["text"]["content"]
+
+
+def test_dingtalk_webhook_approve_viewer_forbidden(
+    db_session: Session,
+    client: TestClient,
+    viewer_auth_headers: dict[str, str],
+    viewer_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """viewer 角色通过 IM 审批应提示权限不足."""
+    monkeypatch.setattr(generate_report_task, "delay", lambda _report_id: None)
+    viewer_user.attributes = {"dingtalk_user_id": "ding_viewer"}
+    db_session.commit()
+
+    resp = client.post(
+        "/api/v1/reports",
+        json={"title": "viewer 审批测试", "report_type": "cash"},
+        headers=viewer_auth_headers,
+    )
+    assert resp.status_code == 201
+    report_id = cast(str, resp.json()["data"]["id"])
+
+    report = db_session.query(Report).filter(Report.id == report_id).first()
+    assert report is not None
+    report.status = "reviewing"
+    db_session.commit()
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": f"/approve report_id={report_id}"},
+                "senderStaffId": "ding_viewer",
+            },
+        )
+        assert resp.status_code == 200
+        assert "权限不足" in resp.json()["text"]["content"]

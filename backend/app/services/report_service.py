@@ -53,9 +53,23 @@ def list_reports(
     tenant_id: str,
     page: int = 1,
     page_size: int = 20,
+    status: str | None = None,
 ) -> tuple[list[Report], int]:
-    """分页查询报告列表."""
+    """分页查询报告列表.
+
+    Args:
+        db: 数据库会话。
+        tenant_id: 租户 ID。
+        page: 页码。
+        page_size: 每页条数。
+        status: 按状态筛选（可选）。
+
+    Returns:
+        (报告列表, 总数)
+    """
     query = db.query(Report).filter(Report.tenant_id == tenant_id)
+    if status:
+        query = query.filter(Report.status == status)
     total = query.count()
     items = (
         query.order_by(Report.created_at.desc())

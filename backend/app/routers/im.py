@@ -51,7 +51,10 @@ def _handle_message(message: IMMessage, platform: str, db: Session) -> dict[str,
             "可用命令：\n"
             "/query <问题>\n"
             "/report <类型> [title=标题] [year=年份] [period=期间]\n"
-            "/approve report_id=<ID> [action=approve|reject] [comment=意见]"
+            "/pending\n"
+            "/approve report_id=<ID> [action=approve|reject|modify] [comment=意见]\n"
+            "/reject report_id=<ID> [comment=意见]\n"
+            "/modify report_id=<ID> [comment=意见]"
         )
         return bot.build_response(help_text)
 

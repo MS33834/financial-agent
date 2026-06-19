@@ -50,6 +50,7 @@ def list_reports_api(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user),
     pagination: PaginationParams = Depends(get_pagination),
+    status: str | None = Query(default=None, description="按报告状态筛选"),
 ) -> dict[str, Any]:
     """查询报告列表."""
     items, total = list_reports(
@@ -57,6 +58,7 @@ def list_reports_api(
         tenant_id=user.tenant_id,
         page=pagination.page,
         page_size=pagination.page_size,
+        status=status,
     )
     return {
         "code": 0,
