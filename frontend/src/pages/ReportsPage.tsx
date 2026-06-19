@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext.tsx'
+import NavBar from '../components/NavBar.tsx'
 import { api } from '../api/client.ts'
 import type { Report } from '../types/report.ts'
 import ReportList from '../components/ReportList.tsx'
@@ -8,7 +7,6 @@ import ReportDetail from '../components/ReportDetail.tsx'
 import ReportCreate from '../components/ReportCreate.tsx'
 
 export default function ReportsPage() {
-  const { logout } = useAuth()
   const [reports, setReports] = useState<Report[]>([])
   const [selected, setSelected] = useState<Report | null>(null)
   const [loading, setLoading] = useState(false)
@@ -39,17 +37,7 @@ export default function ReportsPage() {
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>财务报告中心</h1>
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <Link to="/documents">
-            <button className="secondary">文档解析</button>
-          </Link>
-          <Link to="/audit">
-            <button className="secondary">审计日志</button>
-          </Link>
-          <button className="secondary" onClick={logout}>
-            退出登录
-          </button>
-        </div>
+        <NavBar showLogout />
       </div>
 
       <ReportCreate onCreated={handleCreated} />

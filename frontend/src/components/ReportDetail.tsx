@@ -10,13 +10,13 @@ interface ReportDetailProps {
 export default function ReportDetail({ report, onClose }: ReportDetailProps) {
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
-  const [format, setFormat] = useState('markdown')
+  const [format, setFormat] = useState<'pdf' | 'xlsx' | 'markdown' | 'json'>('markdown')
 
   const handleExport = async () => {
     setExporting(true)
     setExportError('')
     try {
-      const response = await api.post(`/reports/${report.id}/export?format=${format}`)
+      const response = await api.get(`/reports/${report.id}/export?fmt=${format}`)
       const url = response.data.data.content_url as string
       window.open(url, '_blank')
     } catch (err) {
@@ -69,7 +69,12 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
         )}
 
         <div className="actions">
-          <select value={format} onChange={(e) => setFormat(e.target.value)}>
+          <select
+            value={format}
+            onChange={(e) => setFormat(e.target.value as 'pdf' | 'xlsx' | 'markdown' | 'json')}
+          >
+            <option value="pdf">PDF</option>
+            <option value="xlsx">Excel</option>
             <option value="markdown">Markdown</option>
             <option value="json">JSON</option>
           </select>

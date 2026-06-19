@@ -11,6 +11,7 @@ export default function DocumentList({ documents, onSelect }: DocumentListProps)
     processing: '解析中',
     success: '成功',
     failed: '失败',
+    needs_review: '待复核',
   }
 
   if (documents.length === 0) {

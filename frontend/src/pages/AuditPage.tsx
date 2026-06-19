@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import NavBar from '../components/NavBar.tsx'
 import { api } from '../api/client'
 import type { AuditLog } from '../types/audit'
 import AuditLogList from '../components/AuditLogList'
@@ -31,12 +31,7 @@ export default function AuditPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>审计日志</h1>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <Link to="/">
-            <button className="secondary">财务报告</button>
-          </Link>
-          <Link to="/documents">
-            <button className="secondary">文档解析</button>
-          </Link>
+          <NavBar />
           <button className="secondary" onClick={fetchLogs}>
             刷新
           </button>

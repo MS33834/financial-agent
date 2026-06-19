@@ -5,6 +5,14 @@ interface DocumentDetailProps {
   onClose: () => void
 }
 
+const statusMap: Record<string, string> = {
+  pending: '待处理',
+  processing: '解析中',
+  success: '成功',
+  failed: '失败',
+  needs_review: '待复核',
+}
+
 export default function DocumentDetail({ document: doc, onClose }: DocumentDetailProps) {
   return (
     <div className="modal" onClick={onClose}>
@@ -18,7 +26,7 @@ export default function DocumentDetail({ document: doc, onClose }: DocumentDetai
 
         <p>
           <strong>状态：</strong>
-          {doc.status}
+          {statusMap[doc.status] || doc.status}
         </p>
         {doc.confidence !== null && doc.confidence !== undefined && (
           <p>

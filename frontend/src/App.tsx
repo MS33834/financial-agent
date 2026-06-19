@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage.tsx'
 import ReportsPage from './pages/ReportsPage.tsx'
 import DocumentsPage from './pages/DocumentsPage.tsx'
 import AuditPage from './pages/AuditPage.tsx'
+import AgentChatPage from './pages/AgentChatPage.tsx'
+import ApprovalsPage from './pages/ApprovalsPage.tsx'
 import './index.css'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -37,6 +39,22 @@ function App() {
           element={
             <PrivateRoute>
               <AuditPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/agent"
+          element={
+            <PrivateRoute>
+              <AgentChatPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/approvals"
+          element={
+            <PrivateRoute>
+              <ApprovalsPage />
             </PrivateRoute>
           }
         />
