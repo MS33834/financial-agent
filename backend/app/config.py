@@ -68,6 +68,16 @@ class Settings(BaseSettings):
         default="rule", description="Text2SQL 后端: rule/vanna"
     )
 
+    # Agent LLM 意图识别与 RAG
+    agent_intent_mode: str = Field(
+        default="llm", description="Agent 意图识别模式: llm/rule"
+    )
+    agent_llm_model: str = Field(
+        default="qwen2.5:7b", description="Agent LLM 模型名"
+    )
+    rag_chunk_size: int = Field(default=512, description="RAG 文本切分大小")
+    rag_top_k: int = Field(default=3, description="RAG 返回 chunk 数量")
+
     # IM 机器人
     dingtalk_app_secret: str | None = Field(
         default=None, description="钉钉机器人加签密钥"

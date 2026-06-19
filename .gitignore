@@ -65,6 +65,8 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 *.db
+test-results/
+playwright-report/
 
 # Terraform / IaC
 *.tfstate

@@ -22,7 +22,7 @@ export default function NavBar({ showLogout = false }: NavBarProps) {
   ]
 
   return (
-    <div style={{ display: 'flex', gap: '1rem' }}>
+    <nav className="navbar">
       {links.map((link) => (
         <Link key={link.path} to={link.path}>
           <button className={isActive(link.path) ? '' : 'secondary'}>
@@ -35,6 +35,6 @@ export default function NavBar({ showLogout = false }: NavBarProps) {
           退出登录
         </button>
       )}
-    </div>
+    </nav>
   )
 }

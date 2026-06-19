@@ -12,7 +12,7 @@ class AgentState(TypedDict, total=False):
 
     Attributes:
         question: 用户原始自然语言问题。
-        intent: 识别后的意图（nl2sql/create_report/parse_document/unknown）。
+        intent: 识别后的意图（nl2sql/create_report/parse_document/document_qa/unknown）。
         parameters: 从问题中提取的结构化参数。
         tool_result: 工具执行结果。
         answer: 最终自然语言回答。

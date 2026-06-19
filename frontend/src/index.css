@@ -146,3 +146,37 @@ th {
   overflow: auto;
   padding: 24px;
 }
+
+.navbar {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+
+  .navbar {
+    gap: 0.5rem;
+  }
+
+  .navbar button {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    min-width: 600px;
+  }
+}

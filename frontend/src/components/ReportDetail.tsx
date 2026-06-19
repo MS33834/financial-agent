@@ -1,6 +1,15 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { api } from '../api/client.ts'
 import type { Report } from '../types/report.ts'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 
 interface ReportDetailProps {
   report: Report
@@ -11,6 +20,16 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
   const [format, setFormat] = useState<'pdf' | 'xlsx' | 'markdown' | 'json'>('markdown')
+
+  const chartData = useMemo(() => {
+    if (!report.content) return []
+    return report.content.sections
+      .filter((section) => typeof section.value === 'number')
+      .map((section) => ({
+        name: section.name,
+        value: section.value as number,
+      }))
+  }, [report.content])
 
   const handleExport = async () => {
     setExporting(true)
@@ -49,22 +68,37 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
         {report.content && (
           <div className="card">
             <h4>指标</h4>
-            <table>
-              <thead>
-                <tr>
-                  <th>指标</th>
-                  <th>数值</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.content.sections.map((section) => (
-                  <tr key={section.metric}>
-                    <td>{section.name}</td>
-                    <td>{section.value.toLocaleString()}</td>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>指标</th>
+                    <th>数值</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {report.content.sections.map((section) => (
+                    <tr key={section.metric}>
+                      <td>{section.name}</td>
+                      <td>{section.value.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {chartData.length > 0 && (
+              <div style={{ width: '100%', height: 300, marginTop: 16 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#1a73e8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         )}
 
