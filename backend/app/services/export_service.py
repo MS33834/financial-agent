@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, datetime
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 from fpdf import FPDF
@@ -20,6 +21,11 @@ class ExportFormatError(Exception):
     """不支持的导出格式."""
 
     pass
+
+
+# 容器内文泉驿微米黑字体路径；若存在则使用 Unicode 字体渲染中文，否则安全降级
+_CJK_FONT_PATH = Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc")
+_CJK_FONT_FAMILY = "WQYMicroHei"
 
 
 def _render_markdown(report: Report) -> bytes:
@@ -74,6 +80,18 @@ def _safe_pdf_text(text: str) -> str:
     return text.encode("latin-1", "replace").decode("latin-1")
 
 
+def _has_cjk_font() -> bool:
+    """是否已安装可用于 PDF 的中文 Unicode 字体."""
+    return _CJK_FONT_PATH.exists()
+
+
+def _pdf_text(text: str) -> str:
+    """根据字体可用性返回可直接写入 PDF 的文本."""
+    if _has_cjk_font():
+        return text
+    return _safe_pdf_text(text)
+
+
 def _render_pdf(report: Report) -> bytes:
     """将报告内容渲染为 PDF 字节."""
     content = report.content or {}
@@ -83,41 +101,71 @@ def _render_pdf(report: Report) -> bytes:
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, _safe_pdf_text(title), new_x="LMARGIN", new_y="NEXT")
+
+    use_cjk = _has_cjk_font()
+    if use_cjk:
+        pdf.add_font(_CJK_FONT_FAMILY, "", str(_CJK_FONT_PATH))
+        pdf.set_font(_CJK_FONT_FAMILY, "", 16)
+    else:
+        pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, _pdf_text(title), new_x="LMARGIN", new_y="NEXT")
     pdf.ln(5)
 
-    pdf.set_font("Helvetica", "", 12)
-    pdf.cell(0, 8, f"Report Type: {report.report_type}", new_x="LMARGIN", new_y="NEXT")
+    if use_cjk:
+        pdf.set_font(_CJK_FONT_FAMILY, "", 12)
+    else:
+        pdf.set_font("Helvetica", "", 12)
+    pdf.cell(0, 8, _pdf_text(f"报告类型：{report.report_type}"), new_x="LMARGIN", new_y="NEXT")
     pdf.cell(
         0,
         8,
-        f"Created At: {report.created_at.isoformat() if report.created_at else ''}",
+        _pdf_text(f"生成时间：{report.created_at.isoformat() if report.created_at else ''}"),
         new_x="LMARGIN",
         new_y="NEXT",
     )
-    pdf.cell(0, 8, f"Exported At: {datetime.now(UTC).isoformat()}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0,
+        8,
+        _pdf_text(f"导出时间：{datetime.now(UTC).isoformat()}"),
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
     pdf.ln(5)
 
     if summary:
-        pdf.set_font("Helvetica", "B", 14)
-        pdf.cell(0, 10, "Summary", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 12)
-        pdf.multi_cell(0, 8, _safe_pdf_text(summary))
+        if use_cjk:
+            pdf.set_font(_CJK_FONT_FAMILY, "", 14)
+        else:
+            pdf.set_font("Helvetica", "B", 14)
+        pdf.cell(0, 10, _pdf_text("摘要"), new_x="LMARGIN", new_y="NEXT")
+        if use_cjk:
+            pdf.set_font(_CJK_FONT_FAMILY, "", 12)
+        else:
+            pdf.set_font("Helvetica", "", 12)
+        pdf.multi_cell(0, 8, _pdf_text(summary))
         pdf.ln(5)
 
     if sections:
-        pdf.set_font("Helvetica", "B", 14)
-        pdf.cell(0, 10, "Metrics", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "B", 12)
-        pdf.cell(90, 8, "Metric", border=1)
-        pdf.cell(90, 8, "Value", border=1, new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 12)
+        if use_cjk:
+            pdf.set_font(_CJK_FONT_FAMILY, "", 14)
+        else:
+            pdf.set_font("Helvetica", "B", 14)
+        pdf.cell(0, 10, _pdf_text("指标"), new_x="LMARGIN", new_y="NEXT")
+        if use_cjk:
+            pdf.set_font(_CJK_FONT_FAMILY, "", 12)
+        else:
+            pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(90, 8, _pdf_text("指标"), border=1)
+        pdf.cell(90, 8, _pdf_text("数值"), border=1, new_x="LMARGIN", new_y="NEXT")
+        if use_cjk:
+            pdf.set_font(_CJK_FONT_FAMILY, "", 12)
+        else:
+            pdf.set_font("Helvetica", "", 12)
         for section in sections:
             name = section.get("name", "")
             value = section.get("value", "")
-            pdf.cell(90, 8, _safe_pdf_text(str(name)), border=1)
-            pdf.cell(90, 8, _safe_pdf_text(str(value)), border=1, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(90, 8, _pdf_text(str(name)), border=1)
+            pdf.cell(90, 8, _pdf_text(str(value)), border=1, new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())
 

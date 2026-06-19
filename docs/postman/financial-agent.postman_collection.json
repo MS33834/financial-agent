@@ -95,6 +95,30 @@
             "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
             "url": "{{base_url}}/api/v1/reports"
           }
+        },
+        {
+          "name": "Get Report",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": "{{base_url}}/api/v1/reports/{{report_id}}"
+          }
+        },
+        {
+          "name": "Export Report (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": "{{base_url}}/api/v1/reports/{{report_id}}/export?fmt=pdf"
+          }
+        },
+        {
+          "name": "Export Report (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": "{{base_url}}/api/v1/reports/{{report_id}}/export?fmt=xlsx"
+          }
         }
       ]
     },
@@ -114,12 +138,44 @@
               ]
             }
           }
+        },
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": "{{base_url}}/api/v1/documents"
+          }
+        },
+        {
+          "name": "List Documents (needs_review)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": "{{base_url}}/api/v1/documents?status=needs_review"
+          }
+        },
+        {
+          "name": "Get Document",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": "{{base_url}}/api/v1/documents/{{document_id}}"
+          }
         }
       ]
     },
     {
       "name": "Approvals",
       "item": [
+        {
+          "name": "List Approvals",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": "{{base_url}}/api/v1/approvals?report_id={{report_id}}"
+          }
+        },
         {
           "name": "Approve Report",
           "request": {
@@ -153,6 +209,8 @@
   ],
   "variable": [
     {"key": "base_url", "value": "http://localhost:3000"},
-    {"key": "access_token", "value": ""}
+    {"key": "access_token", "value": ""},
+    {"key": "report_id", "value": ""},
+    {"key": "document_id", "value": ""}
   ]
 }

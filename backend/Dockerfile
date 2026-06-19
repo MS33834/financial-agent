@@ -18,10 +18,11 @@ FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# 安装运行时依赖
+# 安装运行时依赖（含中文 PDF 渲染字体）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    fonts-wqy-microhei \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制虚拟环境（从 builder 复制 site-packages）

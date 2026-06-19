@@ -46,6 +46,9 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            # 禁用类型比较：EncryptedJSON 等自定义 TypeDecorator 会被数据库
+            #  introspect 为 TEXT/JSON，导致 alembic check 误报。
+            compare_type=False,
         )
         with context.begin_transaction():
             context.run_migrations()
