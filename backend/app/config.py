@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     feishu_encrypt_key: str | None = Field(
         default=None, description="飞书事件订阅 Encrypt Key"
     )
+    wecom_token: str | None = Field(
+        default=None, description="企业微信回调 Token"
+    )
+    wecom_encoding_aes_key: str | None = Field(
+        default=None, description="企业微信回调 EncodingAESKey"
+    )
     # 业务
     default_page_size: int = Field(default=20, description="默认分页大小")
     max_page_size: int = Field(default=100, description="最大分页大小")

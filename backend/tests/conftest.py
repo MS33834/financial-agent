@@ -18,6 +18,8 @@ os.environ.setdefault("MINIO_ENDPOINT", "localhost:9000")
 os.environ.setdefault("MINIO_ACCESS_KEY", "test")
 os.environ.setdefault("MINIO_SECRET_KEY", "test")
 os.environ.setdefault("FEISHU_ENCRYPT_KEY", "test-encrypt-key-32-char-long-xx")
+os.environ.setdefault("WECOM_TOKEN", "test-wecom-token")
+os.environ.setdefault("WECOM_ENCODING_AES_KEY", "GrmBxZ5RRwnsMVH3deD/+WL+VaSHWmDTVJLMuYid18M")
 
 from app.database import Base, get_db
 from app.main import app

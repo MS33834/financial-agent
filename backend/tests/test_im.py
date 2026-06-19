@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.im.commands import format_approval_result, parse_command
 from app.im.dingtalk import DingTalkBot
 from app.im.feishu import FeishuBot
+from app.im.wecom import WeComBot
 from app.models.report import Report
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -489,3 +490,94 @@ def test_dingtalk_webhook_approve_viewer_forbidden(
         )
         assert resp.status_code == 200
         assert "权限不足" in resp.json()["text"]["content"]
+
+
+@pytest.fixture
+def wecom_token() -> str:
+    return "test-wecom-token"
+
+
+def _compute_wecom_sign(token: str, timestamp: str, nonce: str, encrypt: str) -> str:
+    """计算企业微信回调签名."""
+    import hashlib
+
+    parts = [token, timestamp, nonce, encrypt]
+    parts.sort()
+    return hashlib.sha1("".join(parts).encode()).hexdigest()
+
+
+def test_wecom_verify_signature(wecom_token: str) -> None:
+    """企业微信签名验证通过."""
+    bot = WeComBot(token=wecom_token)
+    timestamp = "1234567890"
+    nonce = "abc123"
+    encrypt = "encrypt-data"
+    sign = _compute_wecom_sign(wecom_token, timestamp, nonce, encrypt)
+    body = f"<xml><Encrypt><![CDATA[{encrypt}]]></Encrypt></xml>".encode()
+    assert bot.verify_signature({}, {"timestamp": timestamp, "nonce": nonce, "msg_signature": sign}, raw_body=body) is True
+
+
+def test_wecom_verify_signature_invalid(wecom_token: str) -> None:
+    """错误企业微信签名验证失败."""
+    bot = WeComBot(token=wecom_token)
+    body = b"<xml><Encrypt><![CDATA[e]]></Encrypt></xml>"
+    assert bot.verify_signature({}, {"timestamp": "1", "nonce": "n", "msg_signature": "bad"}, raw_body=body) is False
+
+
+def test_wecom_parse_message() -> None:
+    """企业微信消息解析正确."""
+    bot = WeComBot(token="test", encoding_aes_key="GrmBxZ5RRwnsMVH3deD/+WL+VaSHWmDTVJLMuYid18M")
+    xml = (
+        "<xml>"
+        "<FromUserName><![CDATA[wxu001]]></FromUserName>"
+        "<ToUserName><![CDATA[corp]]></ToUserName>"
+        "<MsgType><![CDATA[text]]></MsgType>"
+        "<Content><![CDATA[ /query 营收 ]]></Content>"
+        "</xml>"
+    )
+    msg = bot.parse_message({"xml": xml})
+    assert msg.user_id == "wxu001"
+    assert msg.text == "/query 营收"
+
+
+def test_wecom_build_response() -> None:
+    """企业微信响应格式正确."""
+    bot = WeComBot(token="test")
+    resp = bot.build_response("hello")
+    assert resp["msg_type"] == "text"
+    assert resp["content"]["content"] == "hello"
+
+
+def test_wecom_webhook_user_found_by_attributes(
+    db_session: Session,
+    client: TestClient,
+    test_user: User,
+    wecom_token: str,  # noqa: ARG001
+) -> None:
+    """通过 attributes 中的 wecom_user_id 匹配用户."""
+    test_user.attributes = {"wecom_user_id": "wxu001"}
+    db_session.commit()
+
+    xml = (
+        "<xml>"
+        "<FromUserName><![CDATA[wxu001]]></FromUserName>"
+        "<ToUserName><![CDATA[corp]]></ToUserName>"
+        "<MsgType><![CDATA[text]]></MsgType>"
+        "<Content><![CDATA[/query 营收]]></Content>"
+        "</xml>"
+    )
+
+    with patch.multiple(
+        WeComBot,
+        __init__=lambda _self, _token=None, _encoding_aes_key=None: None,
+        verify_signature=lambda _self, _payload, _headers, raw_body=None: raw_body is not None or True,  # noqa: ARG005
+        extract_encrypt=lambda _self, _raw_body: "mocked-encrypt",
+        decrypt=lambda _self, _encrypt: {"xml": xml},
+    ), patch("app.routers.im.handle_command", return_value="查询结果"):
+        resp = client.post(
+            "/api/v1/im/wecom",
+            content=b"<xml></xml>",
+            headers={"timestamp": "1", "nonce": "n", "msg_signature": "s"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["content"]["content"] == "查询结果"

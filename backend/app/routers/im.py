@@ -10,6 +10,7 @@ from app.im.base import BaseIMBot, IMMessage
 from app.im.commands import parse_command
 from app.im.dingtalk import DingTalkBot
 from app.im.feishu import FeishuBot
+from app.im.wecom import WeComBot
 from app.models.user import User
 from app.security import create_access_token
 from app.services.im_service import handle_command
@@ -80,6 +81,8 @@ def _get_bot(platform: str) -> BaseIMBot:
     """根据平台名称获取机器人实例."""
     if platform == "feishu":
         return FeishuBot()
+    if platform == "wecom":
+        return WeComBot()
     return DingTalkBot()
 
 
@@ -136,3 +139,54 @@ async def feishu_webhook(
 
     message = bot.parse_message(payload)
     return _handle_message(message, "feishu", db)
+
+
+@router.api_route("/wecom", methods=["GET", "POST"])
+async def wecom_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, Any] | str:
+    """企业微信机器人事件订阅入口（GET 用于 URL 验证，POST 用于事件推送）."""
+    bot = WeComBot()
+    headers = dict(request.headers)
+
+    # GET 请求为 URL 验证，echostr 在 query 参数中
+    if request.method == "GET":
+        query_params = dict(request.query_params)
+        raw_body = f"<xml><Encrypt><![CDATA[{query_params.get('echostr', '')}]]></Encrypt></xml>".encode()
+        if not bot.verify_signature({}, headers, raw_body=raw_body):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid signature",
+            )
+        try:
+            decrypted = bot.decrypt(query_params["echostr"])
+            return str(decrypted.get("xml", ""))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Decrypt failed: {exc!s}",
+            ) from exc
+
+    # POST 请求为事件推送
+    raw_body = await request.body()
+    if not bot.verify_signature({}, headers, raw_body=raw_body):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid signature",
+        )
+
+    encrypt = bot.extract_encrypt(raw_body)
+    if encrypt:
+        try:
+            payload = bot.decrypt(encrypt)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Decrypt failed: {exc!s}",
+            ) from exc
+    else:
+        payload = {}
+
+    message = bot.parse_message(payload)
+    return _handle_message(message, "wecom", db)
