@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_user_or_api_key
 from app.models.user import User
 from app.schemas.common import DataResponse
 from app.schemas.query import NLQueryRequest, NLQueryResponse
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/queries", tags=["Queries"])
 @router.post("/nl2sql", response_model=DataResponse[NLQueryResponse])
 def nl2sql_query(
     request: NLQueryRequest,
-    user: User = Depends(get_current_active_user),
+    user: User = Depends(get_current_user_or_api_key(scope="queries:nl2sql")),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """自然语言转 SQL 查询并执行."""

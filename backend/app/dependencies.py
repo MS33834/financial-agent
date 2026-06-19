@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -10,7 +10,8 @@ from app.core.abac import ABACEngine
 from app.database import get_db
 from app.models.user import User
 from app.schemas.common import PaginationParams
-from app.security import get_current_user
+from app.security import decode_token, get_current_user
+from app.services.api_key_service import validate_api_key
 
 
 def require_dify_api_key(x_api_key: str | None = Header(default=None)) -> str:
@@ -87,3 +88,116 @@ def require_abac_permission(
         return user
 
     return _check_abac
+
+
+def _resolve_jwt_user(authorization: str | None, db: Session) -> User | None:
+    """从 Authorization: Bearer <jwt> 解析并返回活跃用户."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        payload = decode_token(authorization[7:])
+    except HTTPException:
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None or user.is_active != "Y":
+        return None
+    return user
+
+
+def _resolve_api_key_user(
+    x_api_key: str | None,
+    db: Session,
+    scope: str | None,
+    request: Request,
+) -> User | None:
+    """从 X-API-Key 解析用户并校验 scope.
+
+    Key 存在但 scope 不足时直接抛 403，便于调用方与无效 Key 区分。
+    """
+    if not x_api_key:
+        return None
+    key_record = validate_api_key(db, x_api_key)
+    if key_record is None:
+        return None
+    if scope is not None and not key_record.has_scope(scope):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied",
+        )
+    user = db.query(User).filter(User.id == key_record.user_id).first()
+    if user is None or user.is_active != "Y":
+        return None
+    request.state.api_key_id = key_record.id
+    return user
+
+
+def get_current_user_or_api_key(
+    scope: str | None = None,
+) -> Callable[..., User]:
+    """支持 JWT 或 API Key 的认证依赖工厂.
+
+    优先尝试 ``Authorization: Bearer <jwt>``；失败时尝试 ``X-API-Key``。
+    当提供 ``scope`` 时，API Key 必须拥有对应 scope，JWT 用户不受 scope 限制。
+    """
+
+    def _authenticate(
+        request: Request,
+        authorization: str | None = Header(default=None),
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+        db: Session = Depends(get_db),
+    ) -> User:
+        jwt_user = _resolve_jwt_user(authorization, db)
+        if jwt_user is not None:
+            return jwt_user
+
+        api_user = _resolve_api_key_user(x_api_key, db, scope, request)
+        if api_user is not None:
+            return api_user
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return _authenticate
+
+
+def require_role_or_api_key_scope(
+    *roles: str,
+    scope: str | None = None,
+) -> Callable[..., User]:
+    """角色或 API Key scope 权限校验工厂.
+
+    JWT 用户需满足角色要求；API Key 用户需满足 scope 要求（若提供）。
+    """
+
+    def _check(
+        request: Request,
+        authorization: str | None = Header(default=None),
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+        db: Session = Depends(get_db),
+    ) -> User:
+        jwt_user = _resolve_jwt_user(authorization, db)
+        if jwt_user is not None and jwt_user.role in roles:
+            return jwt_user
+
+        if x_api_key:
+            key_record = validate_api_key(db, x_api_key)
+            if key_record is not None and (
+                scope is None or key_record.has_scope(scope)
+            ):
+                user = db.query(User).filter(User.id == key_record.user_id).first()
+                if user is not None and user.is_active == "Y":
+                    request.state.api_key_id = key_record.id
+                    return user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied",
+        )
+
+    return _check

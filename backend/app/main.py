@@ -14,6 +14,7 @@ from app.database import Base, engine
 from app.logger import configure_logging, get_logger
 from app.routers import (
     access_policies,
+    api_keys,
     approvals,
     audit,
     auth,
@@ -109,6 +110,7 @@ def create_app() -> FastAPI:
     app.include_router(dify_tools.router)
     app.include_router(im.router)
     app.include_router(im_user_mappings.router)
+    app.include_router(api_keys.router)
 
     return app
 

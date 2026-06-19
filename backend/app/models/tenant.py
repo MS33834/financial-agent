@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import UUIDBase
 
 if TYPE_CHECKING:
+    from app.models.api_key import ApiKey
     from app.models.user import User
 
 
@@ -23,3 +24,6 @@ class Tenant(UUIDBase):
     description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="描述")
 
     users: Mapped[list["User"]] = relationship(back_populates="tenant")
+    api_keys: Mapped[list["ApiKey"]] = relationship(
+        back_populates="tenant", cascade="all, delete-orphan"
+    )
