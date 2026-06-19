@@ -1,5 +1,6 @@
 """IM 机器人测试."""
 
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from unittest.mock import patch
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.im.commands import format_approval_result, parse_command
 from app.im.dingtalk import DingTalkBot
+from app.im.feishu import FeishuBot
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.routers.im import _get_user_by_im_id
@@ -182,3 +184,137 @@ def test_format_approval_result() -> None:
     text = format_approval_result(result)
     assert "r-1" in text
     assert "approved" in text
+
+
+@pytest.fixture
+def feishu_encrypt_key() -> str:
+    return "test-encrypt-key-32-char-long-xx"
+
+
+def _compute_feishu_sign(encrypt_key: str, timestamp: str, nonce: str, body: bytes) -> str:
+    """计算飞书事件订阅签名."""
+    import hashlib
+
+    sign_str = f"{timestamp}{nonce}{encrypt_key}{body.decode('utf-8')}"
+    return hashlib.sha256(sign_str.encode("utf-8")).hexdigest()
+
+
+def test_feishu_verify_signature(feishu_encrypt_key: str) -> None:
+    """飞书签名验证通过."""
+    bot = FeishuBot(encrypt_key=feishu_encrypt_key)
+    timestamp = "1234567890"
+    nonce = "abc123"
+    body = b'{"type":"url_verification","challenge":"c1"}'
+    sign = _compute_feishu_sign(feishu_encrypt_key, timestamp, nonce, body)
+    assert bot.verify_signature({}, {"X-Lark-Request-Timestamp": timestamp, "X-Lark-Request-Nonce": nonce, "X-Lark-Signature": sign}, raw_body=body) is True
+
+
+def test_feishu_verify_signature_invalid(feishu_encrypt_key: str) -> None:
+    """错误飞书签名验证失败."""
+    bot = FeishuBot(encrypt_key=feishu_encrypt_key)
+    assert bot.verify_signature({}, {"X-Lark-Request-Timestamp": "1", "X-Lark-Request-Nonce": "n", "X-Lark-Signature": "bad"}, raw_body=b"{}") is False
+
+
+def test_feishu_parse_message() -> None:
+    """飞书消息解析正确."""
+    bot = FeishuBot(encrypt_key="test")
+    payload = {
+        "schema": "2.0",
+        "header": {"tenant_key": "t1"},
+        "event": {
+            "message": {
+                "message_type": "text",
+                "content": '{"text":" /query 营收 "}',
+            },
+            "sender": {
+                "sender_id": {"user_id": "u001"},
+                "sender_type": "user",
+            },
+        },
+    }
+    msg = bot.parse_message(payload)
+    assert msg.user_id == "u001"
+    assert msg.tenant_id == "t1"
+    assert msg.text == "/query 营收"
+
+
+def test_feishu_build_response() -> None:
+    """飞书响应格式正确."""
+    bot = FeishuBot(encrypt_key="test")
+    resp = bot.build_response("hello")
+    assert resp["msg_type"] == "text"
+    assert resp["content"]["text"] == "hello"
+
+
+def test_feishu_webhook_challenge(client: TestClient, feishu_encrypt_key: str) -> None:
+    """飞书 URL 验证返回 challenge."""
+    body = b'{"type":"url_verification","challenge":"xyz","token":"t"}'
+    timestamp = "1234567890"
+    nonce = "n1"
+    sign = _compute_feishu_sign(feishu_encrypt_key, timestamp, nonce, body)
+    resp = client.post(
+        "/api/v1/im/feishu",
+        content=body,
+        headers={
+            "X-Lark-Request-Timestamp": timestamp,
+            "X-Lark-Request-Nonce": nonce,
+            "X-Lark-Signature": sign,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["challenge"] == "xyz"
+
+
+def test_feishu_webhook_user_found_by_attributes(
+    db_session: Session, client: TestClient, feishu_encrypt_key: str
+) -> None:
+    """通过 attributes 中的 feishu_user_id 匹配用户."""
+    tenant = Tenant(name="Feishu Test", code="feishu-test")
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    user = User(
+        tenant_id=tenant.id,
+        username="feishuuser",
+        hashed_password=get_password_hash("pass"),
+        role="admin",
+        is_active="Y",
+        attributes={"feishu_user_id": "fsu001"},
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    assert _get_user_by_im_id(db_session, "fsu001", platform="feishu") is not None
+
+    payload = {
+        "schema": "2.0",
+        "header": {"tenant_key": "t1"},
+        "event": {
+            "message": {
+                "message_type": "text",
+                "content": '{"text":"/query 营收"}',
+            },
+            "sender": {
+                "sender_id": {"user_id": "fsu001"},
+                "sender_type": "user",
+            },
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    timestamp = "1234567890"
+    nonce = "n1"
+    sign = _compute_feishu_sign(feishu_encrypt_key, timestamp, nonce, body)
+
+    with patch("app.routers.im.handle_command", return_value="查询结果"):
+        resp = client.post(
+            "/api/v1/im/feishu",
+            content=body,
+            headers={
+                "X-Lark-Request-Timestamp": timestamp,
+                "X-Lark-Request-Nonce": nonce,
+                "X-Lark-Signature": sign,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["content"]["text"] == "查询结果"

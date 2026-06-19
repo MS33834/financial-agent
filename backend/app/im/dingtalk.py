@@ -34,7 +34,12 @@ class DingTalkBot(BaseIMBot):
         settings = get_settings()
         self.app_secret = app_secret or settings.dingtalk_app_secret
 
-    def verify_signature(self, payload: dict[str, Any], headers: dict[str, str]) -> bool:
+    def verify_signature(
+        self,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+        _raw_body: bytes | None = None,
+    ) -> bool:
         """验证钉钉 Webhook 签名.
 
         钉钉在 URL 中传入 timestamp 与 sign，此处从 headers 或 payload 中读取。

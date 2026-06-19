@@ -17,6 +17,7 @@ os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
 os.environ.setdefault("MINIO_ENDPOINT", "localhost:9000")
 os.environ.setdefault("MINIO_ACCESS_KEY", "test")
 os.environ.setdefault("MINIO_SECRET_KEY", "test")
+os.environ.setdefault("FEISHU_ENCRYPT_KEY", "test-encrypt-key-32-char-long-xx")
 
 from app.database import Base, get_db
 from app.main import app

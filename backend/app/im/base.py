@@ -25,8 +25,19 @@ class BaseIMBot(ABC):
     """
 
     @abstractmethod
-    def verify_signature(self, payload: dict[str, Any], headers: dict[str, str]) -> bool:
-        """验证 Webhook 请求签名."""
+    def verify_signature(
+        self,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+        raw_body: bytes | None = None,
+    ) -> bool:
+        """验证 Webhook 请求签名.
+
+        Args:
+            payload: 已解析的 JSON 负载。
+            headers: 请求头。
+            raw_body: 原始请求体字节，部分平台签名需要。
+        """
         raise NotImplementedError
 
     @abstractmethod
