@@ -171,3 +171,31 @@ def test_viewer_cannot_approve(
         headers=viewer_auth_headers,
     )
     assert response.status_code == 403
+
+
+def test_list_approvals(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试查询审核记录列表."""
+    report_id = _create_report(client, auth_headers, monkeypatch)
+    _force_reviewing(db_session, report_id)
+
+    client.post(
+        f"/api/v1/approvals/{report_id}/action",
+        json={"action": "approve", "comments": "同意"},
+        headers=auth_headers,
+    )
+
+    response = client.get("/api/v1/approvals", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) >= 1
+    assert data[0]["report_id"] == report_id
+    assert data[0]["action"] == "approve"
+
+    filtered = client.get(f"/api/v1/approvals?report_id={report_id}", headers=auth_headers)
+    assert filtered.status_code == 200
+    assert len(filtered.json()["data"]) == 1

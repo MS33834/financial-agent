@@ -49,7 +49,7 @@ def dify_nl2sql(
 ) -> dict[str, Any]:
     """自然语言转 SQL 查询 Tool."""
     user = _get_system_user(db, request.tenant_id, request.user_id)
-    result = QueryService().nl2sql(request.question, str(user.tenant_id), db)
+    result = QueryService().nl2sql(request.question, str(user.tenant_id), db, user=user)
     return {
         "success": result.get("error") is None,
         "data": result,

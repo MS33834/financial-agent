@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.database import SessionLocal
 from app.models.document import Document
+from app.models.user import User
 from app.parser import ExcelParser, PdfParser, cleaner  # noqa: F401
 from app.parser.base import ParserRegistry
 from app.parser.csv_financial_parser import CsvFinancialParser
@@ -20,6 +21,13 @@ from app.storage import get_storage_client
 def _get_document(db: Session, document_id: str) -> Document | None:
     """按 ID 获取文档."""
     return db.query(Document).filter(Document.id == document_id).first()
+
+
+def _get_document_user(db: Session, document: Document | None) -> User | None:
+    """获取文档创建者用户."""
+    if document is None or not document.created_by:
+        return None
+    return db.query(User).filter(User.id == document.created_by).first()
 
 
 def _update_document_status(
@@ -114,10 +122,12 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
             confidence=confidence,
         )
 
+        user = _get_document_user(db, document)
         log_action(
             db=db,
             action=f"document.parse.{final_status}",
             resource=f"document://{document_id}",
+            user=user,
         )
 
         return {
@@ -135,12 +145,14 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
                 "failed",
                 error_message=str(exc),
             )
+            user = _get_document_user(db, document)
             log_action(
                 db=db,
                 action="document.parse.failed",
                 resource=f"document://{document_id}",
                 result="failed",
                 reason=str(exc),
+                user=user,
             )
         return {
             "document_id": document_id,
@@ -157,12 +169,14 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
                 "failed",
                 error_message=str(exc),
             )
+            user = _get_document_user(db, document)
             log_action(
                 db=db,
                 action="document.parse.failed",
                 resource=f"document://{document_id}",
                 result="failed",
                 reason=str(exc),
+                user=user,
             )
         # 可重试异常则自动重试
         raise self.retry(exc=exc) from exc

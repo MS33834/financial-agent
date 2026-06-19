@@ -11,6 +11,7 @@ from app.agent_runtime.tools import (
     nl2sql_tool,
     parse_document_tool,
 )
+from app.models.user import User
 
 
 class AgentRuntimeError(Exception):
@@ -76,12 +77,17 @@ def execute_tool(
     intent = state.get("intent")
     parameters = state.get("parameters", {})
 
+    user: User | None = None
+    if db is not None:
+        user = db.query(User).filter(User.id == user_id, User.tenant_id == tenant_id).first()
+
     try:
         if intent == "nl2sql":
             result = nl2sql_tool(
                 parameters.get("question", state.get("question", "")),
                 tenant_id,
                 db=db,
+                user=user,
             )
         elif intent == "create_report":
             result = create_report_tool(

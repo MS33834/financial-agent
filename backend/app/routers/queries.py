@@ -30,7 +30,7 @@ def nl2sql_query(
         )
 
     service = QueryService()
-    result = service.nl2sql(question, str(user.tenant_id), db)
+    result = service.nl2sql(question, str(user.tenant_id), db, user=user)
 
     return {
         "code": 0,

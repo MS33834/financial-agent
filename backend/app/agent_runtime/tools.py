@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.models.user import User
 from app.services.query_service import QueryService
 from app.services.report_service import create_report_task
 from app.tasks.document_tasks import parse_document_task
@@ -19,20 +20,26 @@ def _get_session(db: Session | None) -> Session:
     return SessionLocal()
 
 
-def nl2sql_tool(question: str, tenant_id: str, db: Session | None = None) -> dict[str, Any]:
+def nl2sql_tool(
+    question: str,
+    tenant_id: str,
+    db: Session | None = None,
+    user: User | None = None,
+) -> dict[str, Any]:
     """自然语言转 SQL 查询工具.
 
     Args:
         question: 用户问题。
         tenant_id: 租户 ID。
         db: 可选的数据库会话，用于测试注入。
+        user: 当前用户，用于审计；可选。
 
     Returns:
         QueryService.nl2sql 的返回结果。
     """
     session = _get_session(db)
     try:
-        return QueryService().nl2sql(question, tenant_id, session)
+        return QueryService().nl2sql(question, tenant_id, session, user=user)
     finally:
         if db is None:
             session.close()

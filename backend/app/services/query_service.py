@@ -9,6 +9,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.models.user import User
+from app.services.audit_service import log_action
 from app.text2sql.base import Text2SQLBackend
 from app.text2sql.rule_backend import RuleBasedText2SQLBackend
 from app.text2sql.sql_sandbox import SQLSandbox, SQLSandboxError
@@ -49,6 +51,7 @@ class QueryService:
         question: str,
         tenant_id: str,
         db: Session,
+        user: User | None = None,
     ) -> dict[str, Any]:
         """自然语言转 SQL 并执行查询.
 
@@ -56,40 +59,66 @@ class QueryService:
             question: 自然语言问题
             tenant_id: 当前租户 ID
             db: 数据库会话
+            user: 当前用户，用于审计；可选
 
         Returns:
             包含 SQL、数据、置信度与执行耗时的字典
         """
-        # 生成 SQL
-        result = self.backend.generate_sql(question)
 
-        if result.error or not result.sql:
-            return {
+        def _truncate_reason(text: str, max_len: int = 200) -> str:
+            """截断审计 reason 避免过长."""
+            return text if len(text) <= max_len else text[:max_len] + "..."
+
+        # 生成 SQL
+        gen_result = self.backend.generate_sql(question)
+
+        if gen_result.error or not gen_result.sql:
+            error = gen_result.error or "无法生成 SQL"
+            response: dict[str, Any] = {
                 "question": question,
                 "sql": None,
                 "data": [],
                 "execution_time_ms": 0,
                 "confidence": 0.0,
-                "backend": result.backend,
-                "error": result.error or "无法生成 SQL",
+                "backend": gen_result.backend,
+                "error": error,
             }
+            log_action(
+                db=db,
+                action="queries.nl2sql",
+                resource=f"query://{tenant_id}",
+                result="failed",
+                user=user,
+                reason=_truncate_reason(f"question={question}, error={error}"),
+            )
+            return response
 
         # 注入租户 ID
-        sql = result.sql.replace(":tenant_id", f"'{tenant_id}'")
+        sql = gen_result.sql.replace(":tenant_id", f"'{tenant_id}'")
 
         # 沙箱校验
         try:
             self.sandbox.validate(sql)
         except SQLSandboxError as exc:
-            return {
+            error = f"SQL sandbox rejected: {exc!s}"
+            response = {
                 "question": question,
                 "sql": sql,
                 "data": [],
                 "execution_time_ms": 0,
                 "confidence": 0.0,
-                "backend": result.backend,
-                "error": f"SQL sandbox rejected: {exc!s}",
+                "backend": gen_result.backend,
+                "error": error,
             }
+            log_action(
+                db=db,
+                action="queries.nl2sql",
+                resource=f"query://{tenant_id}",
+                result="failed",
+                user=user,
+                reason=_truncate_reason(f"question={question}, error={error}"),
+            )
+            return response
 
         # 执行查询
         start = time.perf_counter()
@@ -97,24 +126,43 @@ class QueryService:
             rows = db.execute(text(sql)).mappings().all()
             data = [dict(row) for row in rows]
         except Exception as exc:  # noqa: BLE001
-            return {
+            error = f"Execution failed: {exc!s}"
+            response = {
                 "question": question,
                 "sql": sql,
                 "data": [],
                 "execution_time_ms": int((time.perf_counter() - start) * 1000),
                 "confidence": 0.0,
-                "backend": result.backend,
-                "error": f"Execution failed: {exc!s}",
+                "backend": gen_result.backend,
+                "error": error,
             }
+            log_action(
+                db=db,
+                action="queries.nl2sql",
+                resource=f"query://{tenant_id}",
+                result="failed",
+                user=user,
+                reason=_truncate_reason(f"question={question}, error={error}"),
+            )
+            return response
 
         execution_time_ms = int((time.perf_counter() - start) * 1000)
 
-        return {
+        response = {
             "question": question,
             "sql": sql,
             "data": data,
             "execution_time_ms": execution_time_ms,
-            "confidence": result.confidence,
-            "backend": result.backend,
-            "explanation": result.explanation,
+            "confidence": gen_result.confidence,
+            "backend": gen_result.backend,
+            "explanation": gen_result.explanation,
         }
+        log_action(
+            db=db,
+            action="queries.nl2sql",
+            resource=f"query://{tenant_id}",
+            result="success",
+            user=user,
+            reason=_truncate_reason(f"question={question}, backend={gen_result.backend}"),
+        )
+        return response

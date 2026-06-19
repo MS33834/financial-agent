@@ -48,3 +48,34 @@ def test_audit_logs_forbidden_for_non_privileged_user(
 
     response = client.get("/api/v1/audit/logs", headers=headers)
     assert response.status_code == 403
+
+
+def test_query_logged_in_audit(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+    test_tenant: Tenant,
+) -> None:
+    """测试调用 nl2sql 后审计日志包含 queries.nl2sql."""
+    from app.models.financial_report import FinancialReport
+
+    report = FinancialReport(
+        tenant_id=test_tenant.id,
+        year=2025,
+        period="Q2",
+        net_profit=1_000_000.0,
+    )
+    db_session.add(report)
+    db_session.commit()
+
+    client.post(
+        "/api/v1/queries/nl2sql",
+        json={"question": "2025 年 Q2 净利润是多少"},
+        headers=auth_headers,
+    )
+
+    response = client.get("/api/v1/audit/logs?page=1&page_size=50", headers=auth_headers)
+    assert response.status_code == 200
+    items = response.json()["data"]["items"]
+    actions = {item["action"] for item in items}
+    assert "queries.nl2sql" in actions
