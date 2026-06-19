@@ -12,7 +12,7 @@
 import uuid
 from collections.abc import Generator
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -130,7 +130,7 @@ def _login(client: TestClient, username: str, password: str = "testpass") -> str
         json={"username": username, "password": password},
     )
     assert resp.status_code == 200
-    return resp.json()["data"]["access_token"]
+    return cast(str, resp.json()["data"]["access_token"])
 
 
 def test_admin_journey(e2e_db: Session) -> None:
