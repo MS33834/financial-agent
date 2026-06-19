@@ -2,8 +2,12 @@
 
 import json
 from datetime import UTC, datetime
+from io import BytesIO
 from typing import Any
 
+from fpdf import FPDF
+from openpyxl import Workbook
+from openpyxl.styles import Font
 from sqlalchemy.orm import Session
 
 from app.models.report import Report
@@ -65,19 +69,122 @@ def _render_json(report: Report) -> bytes:
     return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
 
 
+def _safe_pdf_text(text: str) -> str:
+    """将文本编码为 PDF 核心字体支持的 latin-1 字符集."""
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def _render_pdf(report: Report) -> bytes:
+    """将报告内容渲染为 PDF 字节."""
+    content = report.content or {}
+    title = content.get("title", report.title)
+    summary = content.get("summary") or report.summary or ""
+    sections = content.get("sections") or []
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, _safe_pdf_text(title), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(5)
+
+    pdf.set_font("Helvetica", "", 12)
+    pdf.cell(0, 8, f"Report Type: {report.report_type}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0,
+        8,
+        f"Created At: {report.created_at.isoformat() if report.created_at else ''}",
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+    pdf.cell(0, 8, f"Exported At: {datetime.now(UTC).isoformat()}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(5)
+
+    if summary:
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.cell(0, 10, "Summary", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 12)
+        pdf.multi_cell(0, 8, _safe_pdf_text(summary))
+        pdf.ln(5)
+
+    if sections:
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.cell(0, 10, "Metrics", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(90, 8, "Metric", border=1)
+        pdf.cell(90, 8, "Value", border=1, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 12)
+        for section in sections:
+            name = section.get("name", "")
+            value = section.get("value", "")
+            pdf.cell(90, 8, _safe_pdf_text(str(name)), border=1)
+            pdf.cell(90, 8, _safe_pdf_text(str(value)), border=1, new_x="LMARGIN", new_y="NEXT")
+
+    return bytes(pdf.output())
+
+
+def _render_excel(report: Report) -> bytes:
+    """将报告内容渲染为 Excel 字节."""
+    content = report.content or {}
+    title = content.get("title", report.title)
+    summary = content.get("summary") or report.summary or ""
+    sections = content.get("sections") or []
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Report"
+
+    worksheet["A1"] = title
+    worksheet["A1"].font = Font(bold=True, size=16)
+
+    worksheet["A2"] = "Report Type"
+    worksheet["B2"] = report.report_type
+    worksheet["A3"] = "Created At"
+    worksheet["B3"] = report.created_at.isoformat() if report.created_at else ""
+    worksheet["A4"] = "Exported At"
+    worksheet["B4"] = datetime.now(UTC).isoformat()
+
+    row = 6
+    if summary:
+        worksheet.cell(row=row, column=1, value="Summary").font = Font(bold=True, size=14)
+        row += 1
+        worksheet.cell(row=row, column=1, value=summary)
+        row += 2
+
+    if sections:
+        worksheet.cell(row=row, column=1, value="Metrics").font = Font(bold=True, size=14)
+        row += 1
+        worksheet.cell(row=row, column=1, value="Metric").font = Font(bold=True)
+        worksheet.cell(row=row, column=2, value="Value").font = Font(bold=True)
+        row += 1
+        for section in sections:
+            worksheet.cell(row=row, column=1, value=section.get("name", ""))
+            worksheet.cell(row=row, column=2, value=section.get("value", ""))
+            row += 1
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
 _RENDERERS: dict[str, Any] = {
     "markdown": _render_markdown,
     "json": _render_json,
+    "pdf": _render_pdf,
+    "xlsx": _render_excel,
 }
 
 _CONTENT_TYPES: dict[str, str] = {
     "markdown": "text/markdown; charset=utf-8",
     "json": "application/json; charset=utf-8",
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
 
 _FILE_EXTENSIONS: dict[str, str] = {
     "markdown": "md",
     "json": "json",
+    "pdf": "pdf",
+    "xlsx": "xlsx",
 }
 
 
@@ -95,7 +202,7 @@ def export_report(
         report: 已生成的报告。
         storage: 对象存储客户端。
         user: 当前用户，用于审计日志。
-        fmt: 导出格式，支持 markdown/json。
+        fmt: 导出格式，支持 markdown/json/pdf/xlsx。
 
     Returns:
         导出的文件访问 URL。

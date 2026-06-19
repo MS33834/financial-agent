@@ -124,6 +124,64 @@ def test_export_report_json(
     assert data["content_url"].endswith("/report.json")
 
 
+def test_export_report_pdf(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试导出 PDF 格式."""
+    fake_storage = FakeStorageClient()
+    monkeypatch.setattr(
+        "app.routers.reports.get_storage_client",
+        lambda: fake_storage,
+    )
+
+    report_id = _create_reviewing_report(client, auth_headers, db_session, monkeypatch)
+
+    response = client.post(
+        f"/api/v1/reports/{report_id}/export?format=pdf",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["format"] == "pdf"
+    assert data["content_url"].endswith("/report.pdf")
+    assert len(fake_storage.uploaded) == 1
+    assert fake_storage.uploaded[0]["content_type"] == "application/pdf"
+    assert fake_storage.uploaded[0]["data"].startswith(b"%PDF")
+
+
+def test_export_report_xlsx(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试导出 Excel 格式."""
+    fake_storage = FakeStorageClient()
+    monkeypatch.setattr(
+        "app.routers.reports.get_storage_client",
+        lambda: fake_storage,
+    )
+
+    report_id = _create_reviewing_report(client, auth_headers, db_session, monkeypatch)
+
+    response = client.post(
+        f"/api/v1/reports/{report_id}/export?format=xlsx",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["format"] == "xlsx"
+    assert data["content_url"].endswith("/report.xlsx")
+    assert len(fake_storage.uploaded) == 1
+    assert fake_storage.uploaded[0]["content_type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert fake_storage.uploaded[0]["data"].startswith(b"PK")
+
+
 def test_export_report_invalid_format(
     client: TestClient,
     auth_headers: dict[str, str],
@@ -139,7 +197,7 @@ def test_export_report_invalid_format(
     report_id = _create_reviewing_report(client, auth_headers, db_session, monkeypatch)
 
     response = client.post(
-        f"/api/v1/reports/{report_id}/export?format=pdf",
+        f"/api/v1/reports/{report_id}/export?format=txt",
         headers=auth_headers,
     )
     assert response.status_code == 400

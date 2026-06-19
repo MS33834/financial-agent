@@ -90,6 +90,12 @@ class Settings(BaseSettings):
     wecom_webhook: str | None = Field(
         default=None, description="企业微信机器人 Webhook 地址，用于主动推送消息"
     )
+    # Mineru / Magic-PDF 解析服务
+    mineru_api_url: str | None = Field(
+        default=None, description="Mineru 解析服务 HTTP API 地址"
+    )
+    mineru_timeout: int = Field(default=120, description="Mineru 请求超时（秒）")
+
     # 业务
     default_page_size: int = Field(default=20, description="默认分页大小")
     max_page_size: int = Field(default=100, description="最大分页大小")

@@ -53,8 +53,8 @@ def _create_document(db: Session, tenant: Tenant, user: User, filename: str) -> 
     return doc
 
 
-def test_parse_document_task_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    """测试文档解析任务成功更新状态与结果.
+def test_parse_empty_document_needs_review(monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试空记录文档解析后进入 needs_review 状态.
 
     注意：Celery 任务使用独立的 SessionLocal，为避免 SQLite 事务隔离导致任务看不到
     未提交数据，本测试在独立会话中创建租户、用户与文档并真实提交。
@@ -91,15 +91,17 @@ def test_parse_document_task_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
         result = parse_document_task.delay(doc.id).get()
 
-        assert result["status"] == "success"
+        assert result["status"] == "needs_review"
         assert result["document_id"] == doc.id
 
         db.refresh(doc)
-        assert doc.status == "success"
+        assert doc.status == "needs_review"
         assert doc.confidence == 0.3
         assert doc.parse_result is not None
         assert doc.parse_result["detected_year"] == 2025
         assert doc.parse_result["detected_period"] == "Q2"
+        assert doc.parse_result["original_count"] == 0
+        assert doc.parse_result["cleaned_count"] == 0
         assert doc.error_message is None
     finally:
         db.close()
@@ -278,5 +280,54 @@ def test_parse_csv_document_imports_financial_data(
         assert report.revenue == 10_000_000.0
         assert report.operating_cost == 6_000_000.0
         assert report.net_profit == 2_500_000.0
+    finally:
+        db.close()
+
+
+def test_parse_low_confidence_document_needs_review(monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试清洗后记录数显著下降时文档进入 needs_review 状态."""
+    db = SessionLocal()
+    try:
+        tenant = Tenant(name="Low Confidence Tenant", code="low-confidence")
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+
+        user = User(
+            tenant_id=tenant.id,
+            username="lowconf",
+            email="lowconf@example.com",
+            hashed_password=get_password_hash("testpass"),
+            role="admin",
+            is_active="Y",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        storage_key = "docs/profit_2025_q2.csv"
+        # 3 条空记录 + 1 条有效记录，清洗后保留率 < 50%，置信度应降低
+        csv_content = b"year,period,revenue\n,,\n,,\n,,\n2025,Q2,1000000\n"
+        fake_storage = FakeStorageClient({storage_key: csv_content})
+        monkeypatch.setattr(
+            "app.tasks.document_tasks.get_storage_client",
+            lambda: fake_storage,
+        )
+
+        doc = _create_document(db, tenant, user, "profit_2025_q2.csv")
+        doc.storage_key = storage_key
+        db.commit()
+
+        result = parse_document_task.delay(doc.id).get()
+
+        assert result["status"] == "needs_review"
+        assert result["confidence"] == pytest.approx(0.475)
+
+        db.refresh(doc)
+        assert doc.status == "needs_review"
+        assert doc.parse_result is not None
+        assert doc.parse_result["original_count"] == 4
+        assert doc.parse_result["cleaned_count"] == 1
+        assert doc.parse_result["imported_count"] == 1
     finally:
         db.close()

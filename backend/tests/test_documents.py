@@ -5,7 +5,12 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
+from app.models.document import Document
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.security import create_access_token, get_password_hash
 from app.tasks.document_tasks import parse_document_task
 
 
@@ -127,3 +132,64 @@ def test_upload_document(
     assert data["status"] == "pending"
     assert len(fake_storage.uploaded) == 1
     assert fake_storage.uploaded[0]["content_type"] == "text/csv"
+
+
+def test_document_list_filter_by_status(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    """测试按状态筛选文档列表."""
+    tenant = Tenant(name="Filter Tenant", code="filter")
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    user = User(
+        tenant_id=tenant.id,
+        username="filteruser",
+        email="filter@example.com",
+        hashed_password=get_password_hash("testpass"),
+        role="admin",
+        is_active="Y",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    doc_success = Document(
+        tenant_id=tenant.id,
+        created_by=user.id,
+        filename="success_doc.pdf",
+        storage_key="docs/success_doc.pdf",
+        status="success",
+    )
+    doc_review = Document(
+        tenant_id=tenant.id,
+        created_by=user.id,
+        filename="review_doc.pdf",
+        storage_key="docs/review_doc.pdf",
+        status="needs_review",
+    )
+    db_session.add_all([doc_success, doc_review])
+    db_session.commit()
+
+    token = {"Authorization": f"Bearer {create_access_token({'sub': user.id})}"}
+
+    response = client.get("/api/v1/documents?status=success", headers=token)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["status"] == "success"
+
+    response = client.get("/api/v1/documents?status=needs_review", headers=token)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["status"] == "needs_review"
+
+    response = client.get("/api/v1/documents", headers=token)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["total"] == 2

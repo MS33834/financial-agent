@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.database import SessionLocal
 from app.models.document import Document
-from app.parser import ExcelParser, PdfParser  # noqa: F401
+from app.parser import ExcelParser, PdfParser, cleaner  # noqa: F401
 from app.parser.base import ParserRegistry
 from app.parser.csv_financial_parser import CsvFinancialParser
 from app.parser.simple_parser import SimpleDocumentParser
@@ -81,8 +81,17 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
             records = parse_result.get("records", [])
             confidence = parse_result.get("confidence", 0.3)
 
+        # 清洗记录并计算最终置信度
+        original_count = len(records)
+        cleaned_records = cleaner.clean_records(records)
+        cleaned_count = len(cleaned_records)
+        parse_result["records"] = cleaned_records
+        parse_result["original_count"] = original_count
+        parse_result["cleaned_count"] = cleaned_count
+        confidence = cleaner.calculate_confidence(original_count, cleaned_count, confidence)
+
         # 将结构化记录导入财务数据表
-        if records:
+        if cleaned_records:
             default_year = parse_result.get("detected_year") or extract_year(document.filename)
             default_period = parse_result.get("detected_period") or extract_period(
                 document.filename
@@ -90,29 +99,30 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
             imported = import_financial_records(
                 db=db,
                 tenant_id=document.tenant_id,
-                records=records,
+                records=cleaned_records,
                 default_year=default_year,
                 default_period=default_period or "annual",
             )
             parse_result["imported_count"] = len(imported)
 
+        final_status = "success" if confidence >= 0.7 and cleaned_count > 0 else "needs_review"
         _update_document_status(
             db,
             document,
-            "success",
+            final_status,
             parse_result=parse_result,
             confidence=confidence,
         )
 
         log_action(
             db=db,
-            action="document.parse.success",
+            action=f"document.parse.{final_status}",
             resource=f"document://{document_id}",
         )
 
         return {
             "document_id": document_id,
-            "status": "success",
+            "status": final_status,
             "confidence": confidence,
         }
     except ValueError as exc:

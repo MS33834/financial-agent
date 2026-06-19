@@ -1,8 +1,10 @@
 """文档解析相关 Schema."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+DocumentStatus = Literal["pending", "processing", "success", "needs_review", "failed"]
 
 
 class DocumentCreate(BaseModel):
@@ -17,7 +19,7 @@ class DocumentResponse(BaseModel):
 
     id: str = Field(description="任务 ID")
     filename: str = Field(description="原始文件名")
-    status: str = Field(description="状态")
+    status: DocumentStatus = Field(description="状态")
     confidence: float | None = Field(default=None, description="解析置信度")
     parse_result: dict[str, Any] | None = Field(default=None, description="解析结果")
     error_message: str | None = Field(default=None, description="错误信息")

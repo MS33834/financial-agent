@@ -95,7 +95,7 @@ def get_report_api(
 @router.post("/{report_id}/export", response_model=DataResponse[ReportExportResponse])
 def export_report_api(
     report_id: str,
-    fmt: str = Query(default="markdown", alias="format", description="导出格式: markdown/json"),
+    fmt: str = Query(default="markdown", alias="format", description="导出格式: markdown/json/pdf/xlsx"),
     db: Session = Depends(get_db),
     user: User = Depends(
         require_role_or_api_key_scope(

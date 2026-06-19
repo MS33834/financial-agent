@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.roles import Role
@@ -75,6 +75,7 @@ def list_documents_api(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user),
     pagination: PaginationParams = Depends(get_pagination),
+    status: str | None = Query(None, description="按状态筛选"),
 ) -> dict[str, Any]:
     """查询文档解析任务列表."""
     items, total = list_documents(
@@ -82,6 +83,7 @@ def list_documents_api(
         tenant_id=user.tenant_id,
         page=pagination.page,
         page_size=pagination.page_size,
+        status=status,
     )
     return {
         "code": 0,

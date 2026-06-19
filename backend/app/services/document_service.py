@@ -53,9 +53,12 @@ def list_documents(
     tenant_id: str,
     page: int = 1,
     page_size: int = 20,
+    status: str | None = None,
 ) -> tuple[list[Document], int]:
     """分页查询文档列表."""
     query = db.query(Document).filter(Document.tenant_id == tenant_id)
+    if status:
+        query = query.filter(Document.status == status)
     total = query.count()
     items = (
         query.order_by(Document.created_at.desc())

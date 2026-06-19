@@ -38,7 +38,7 @@ class Document(UUIDBase):
         String(32),
         nullable=False,
         default="pending",
-        comment="状态: pending/processing/success/failed",
+        comment="状态: pending/processing/success/needs_review/failed",
     )
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True, comment="解析置信度")
     parse_result: Mapped[dict[str, Any] | None] = mapped_column(
