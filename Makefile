@@ -8,8 +8,9 @@ export
 
 PROJECT_NAME := financial-agent
 COMPOSE_FILE := docker-compose.yml
+COMPOSE_PROD_FILE := docker-compose.prod.yml
 
-.PHONY: help init validate up up-build down down-volumes logs logs-api logs-backend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-migrate
+.PHONY: help init validate validate-prod up up-build up-prod down down-volumes logs logs-api logs-backend logs-frontend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-migrate
 
 help: ## 显示可用命令
 	@echo "Available commands:"
@@ -37,11 +38,18 @@ validate: ## 校验 docker-compose.yml 配置（无需启动 Docker）
 	@cp -f .env vendor/dify/docker/.env
 	@docker compose -f $(COMPOSE_FILE) config > /dev/null && echo "Compose configuration is valid."
 
+validate-prod: ## 校验生产环境 Compose 配置（无需启动 Docker）
+	@echo "==> Validating production Docker Compose configuration..."
+	@docker compose -f $(COMPOSE_FILE) -f $(COMPOSE_PROD_FILE) config > /dev/null && echo "Production compose configuration is valid."
+
 up: ## 启动全部服务（后台）
 	docker compose -f $(COMPOSE_FILE) --env-file .env up -d
 
 up-build: ## 启动全部服务并重新构建
 	docker compose -f $(COMPOSE_FILE) --env-file .env up -d --build
+
+up-prod: ## 以生产模式启动全部服务（后台）
+	docker compose -f $(COMPOSE_FILE) -f $(COMPOSE_PROD_FILE) --env-file .env up -d
 
 down: ## 停止并移除全部服务
 	docker compose -f $(COMPOSE_FILE) down
@@ -57,6 +65,9 @@ logs-api: ## 查看 Dify API 日志
 
 logs-backend: ## 查看后端服务日志
 	docker compose -f $(COMPOSE_FILE) logs -f backend
+
+logs-frontend: ## 查看前端服务日志
+	docker compose -f $(COMPOSE_FILE) logs -f frontend
 
 pull-model: ## 拉取 Ollama 模型（默认 qwen2.5:7b，可在 .env 中修改）
 	@if [ -z "$(OLLAMA_MODEL)" ]; then \

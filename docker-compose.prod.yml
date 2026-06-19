@@ -1,0 +1,68 @@
+# ==================================================================
+# 企业级财务智能体 - 生产环境 Docker Compose
+#
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 本文件在 docker-compose.yml 基础上增加资源限制与副本策略，
+# 适用于单机生产或 Docker Swarm 轻量部署。
+# ==================================================================
+
+name: financial-agent
+
+services:
+  backend:
+    extends:
+      file: docker-compose.yml
+      service: backend
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+
+  worker:
+    extends:
+      file: docker-compose.yml
+      service: worker
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+
+  frontend:
+    extends:
+      file: docker-compose.yml
+      service: frontend
+    ports:
+      - "80:80"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5

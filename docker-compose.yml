@@ -152,8 +152,8 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 15s
       timeout: 10s
       retries: 5
       start_period: 30s
@@ -190,6 +190,16 @@ services:
     restart: unless-stopped
     networks:
       - default
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.celery_app inspect ping -d celery@financial-agent-worker --timeout 5 || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # ----------------------------------------------------------------
   # 前端页面（React + Nginx）
@@ -202,10 +212,17 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - default
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 networks:
   default:
