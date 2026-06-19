@@ -5,11 +5,21 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
+from app.config import get_settings
 from app.database import SessionLocal
+from app.im import DingTalkBot, FeishuBot, WeComBot
+from app.models.im_user_mapping import IMUserMapping
 from app.models.report import Report
 from app.models.user import User
 from app.reporting.generator import ReportGenerationError, ReportGenerator
 from app.services.audit_service import log_action
+
+# 平台到机器人类的映射
+_PLATFORM_BOTS: dict[str, type[DingTalkBot | FeishuBot | WeComBot]] = {
+    "dingtalk": DingTalkBot,
+    "feishu": FeishuBot,
+    "wecom": WeComBot,
+}
 
 
 def _get_report(db: Session, report_id: str) -> Report | None:
@@ -22,6 +32,58 @@ def _get_report_creator(db: Session, report: Report) -> User | None:
     if not report.created_by:
         return None
     return db.query(User).filter(User.id == report.created_by).first()
+
+
+def _notify_approvers(db: Session, report: Report) -> None:
+    """报告生成成功后通知具备审批权限的用户.
+
+    根据当前租户内 admin/auditor 用户的 IM 映射以及已配置的 Webhook，
+    通过对应平台的机器人主动推送通知。推送失败不影响主流程。
+    """
+    settings = get_settings()
+    configured_platforms = {
+        platform
+        for platform, webhook in {
+            "dingtalk": settings.dingtalk_webhook,
+            "feishu": settings.feishu_webhook,
+            "wecom": settings.wecom_webhook,
+        }.items()
+        if webhook
+    }
+    if not configured_platforms:
+        return
+
+    mappings = (
+        db.query(IMUserMapping)
+        .join(User, IMUserMapping.user_id == User.id)
+        .filter(
+            IMUserMapping.tenant_id == report.tenant_id,
+            User.role.in_(("admin", "auditor")),
+            User.is_active == "Y",
+            IMUserMapping.platform.in_(configured_platforms),
+        )
+        .all()
+    )
+    if not mappings:
+        return
+
+    message = (
+        f"报告《{report.title}》已生成完毕，当前状态：待审批。\n"
+        f"摘要：{report.summary or '无'}"
+    )
+    sent_platforms: set[str] = set()
+    for mapping in mappings:
+        if mapping.platform in sent_platforms:
+            continue
+        bot_cls = _PLATFORM_BOTS.get(mapping.platform)
+        if bot_cls is None:
+            continue
+        try:
+            bot_cls().send_message(message)
+        except Exception:
+            # 通知失败不应阻塞主流程
+            continue
+        sent_platforms.add(mapping.platform)
 
 
 def _update_report_status(
@@ -82,6 +144,8 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
             resource=f"report://{report_id}",
             user=creator,
         )
+
+        _notify_approvers(db, report)
 
         return {
             "report_id": report_id,

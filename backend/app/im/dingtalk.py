@@ -10,10 +10,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
+import time
 from typing import Any
 
 from app.config import get_settings
-from app.im.base import BaseIMBot, IMMessage
+from app.im.base import BaseIMBot, IMMessage, send_webhook_with_retry
 
 
 class DingTalkSignatureError(Exception):
@@ -91,3 +93,19 @@ class DingTalkBot(BaseIMBot):
             "msgtype": "text",
             "text": {"content": content},
         }
+
+    def send_message(self, content: str, msg_type: str = "text") -> bool:
+        """通过钉钉机器人 Webhook 主动推送消息."""
+        settings = get_settings()
+        webhook = settings.dingtalk_webhook
+        if not webhook:
+            return False
+
+        timestamp = str(int(time.time() * 1000))
+        sign = self._compute_sign(timestamp) if self.app_secret else ""
+        url = f"{webhook}&timestamp={timestamp}"
+        if sign:
+            url = f"{url}&sign={sign}"
+
+        body = json.dumps(self.build_response(content, msg_type)).encode("utf-8")
+        return send_webhook_with_retry(url, body)

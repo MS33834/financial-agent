@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import time
+import urllib.request
 from abc import ABC, abstractmethod
 from typing import Any
+from urllib.error import URLError
 
 from pydantic import BaseModel
 
@@ -16,6 +19,35 @@ class IMMessage(BaseModel):
     tenant_id: str = ""
     text: str = ""
     raw_payload: dict[str, Any] | None = None
+
+
+def send_webhook_with_retry(
+    webhook_url: str,
+    body: bytes,
+    *,
+    max_retries: int = 2,
+    timeout: int = 10,
+) -> bool:
+    """向 Webhook 地址发送 POST 请求，失败时自动重试.
+
+    仅对网络层异常（URLError、TimeoutError、OSError）进行重试，
+    HTTP 非 200 响应直接返回失败，避免对业务错误无限重试。
+    """
+    for attempt in range(max_retries + 1):
+        req = urllib.request.Request(
+            webhook_url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return bool(resp.status == 200)
+        except (URLError, TimeoutError, OSError):
+            if attempt == max_retries:
+                return False
+            time.sleep(2 ** attempt)
+    return False
 
 
 class BaseIMBot(ABC):
@@ -53,3 +85,11 @@ class BaseIMBot(ABC):
     def build_error_response(self, error: str) -> dict[str, Any]:
         """构建错误响应."""
         return self.build_response(f"请求处理失败：{error}", msg_type="text")
+
+    def send_message(self, _content: str, _msg_type: str = "text") -> bool:
+        """主动向 IM 平台推送消息.
+
+        默认实现为空操作并返回 False；子类可根据平台 Webhook 实现主动推送。
+        未配置 Webhook 或推送失败时均返回 False，不影响主流程。
+        """
+        return False

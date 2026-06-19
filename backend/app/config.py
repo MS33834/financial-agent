@@ -67,14 +67,23 @@ class Settings(BaseSettings):
     dingtalk_app_secret: str | None = Field(
         default=None, description="钉钉机器人加签密钥"
     )
+    dingtalk_webhook: str | None = Field(
+        default=None, description="钉钉机器人 Webhook 地址，用于主动推送消息"
+    )
     feishu_encrypt_key: str | None = Field(
         default=None, description="飞书事件订阅 Encrypt Key"
+    )
+    feishu_webhook: str | None = Field(
+        default=None, description="飞书机器人 Webhook 地址，用于主动推送消息"
     )
     wecom_token: str | None = Field(
         default=None, description="企业微信回调 Token"
     )
     wecom_encoding_aes_key: str | None = Field(
         default=None, description="企业微信回调 EncodingAESKey"
+    )
+    wecom_webhook: str | None = Field(
+        default=None, description="企业微信机器人 Webhook 地址，用于主动推送消息"
     )
     # 业务
     default_page_size: int = Field(default=20, description="默认分页大小")

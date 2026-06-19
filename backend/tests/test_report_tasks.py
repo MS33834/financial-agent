@@ -1,9 +1,13 @@
 """报告生成异步任务测试."""
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import SessionLocal
 from app.models.financial_report import FinancialReport
+from app.models.im_user_mapping import IMUserMapping
 from app.models.report import Report
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -122,5 +126,60 @@ def test_generate_report_task_missing_data() -> None:
         db.refresh(report)
         assert report.status == "failed"
         assert report.error_message is not None
+    finally:
+        db.close()
+
+
+def test_generate_report_task_sends_im_notification(monkeypatch: Any) -> None:
+    """测试报告生成成功后会向审批人推送 IM 通知."""
+    sent_messages: list[tuple[str, str]] = []
+    settings = get_settings()
+    monkeypatch.setattr(settings, "dingtalk_webhook", "https://example.com/dingtalk")
+
+    def _fake_send(_self: Any, content: str, msg_type: str = "text") -> bool:
+        sent_messages.append((content, msg_type))
+        return True
+
+    monkeypatch.setattr(
+        "app.tasks.report_tasks.DingTalkBot.send_message",
+        _fake_send,
+    )
+
+    db = SessionLocal()
+    try:
+        tenant = Tenant(name="Notify Tenant", code="notify")
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+
+        user = User(
+            tenant_id=tenant.id,
+            username="notifyadmin",
+            email="notify@example.com",
+            hashed_password=get_password_hash("testpass"),
+            role="admin",
+            is_active="Y",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        mapping = IMUserMapping(
+            tenant_id=tenant.id,
+            user_id=user.id,
+            platform="dingtalk",
+            im_user_id="ding-user-1",
+        )
+        db.add(mapping)
+        db.commit()
+
+        _seed_financial(db, tenant)
+        report = _create_report(db, tenant, user)
+
+        result = generate_report_task.delay(report.id).get()
+
+        assert result["status"] == "reviewing"
+        assert len(sent_messages) == 1
+        assert report.title in sent_messages[0][0]
     finally:
         db.close()

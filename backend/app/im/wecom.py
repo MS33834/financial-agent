@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import struct
 import xml.etree.ElementTree as ET
 from typing import Any
@@ -18,7 +19,7 @@ from typing import Any
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.config import get_settings
-from app.im.base import BaseIMBot, IMMessage
+from app.im.base import BaseIMBot, IMMessage, send_webhook_with_retry
 
 
 def _sha1_hex(data: bytes) -> str:
@@ -170,6 +171,16 @@ class WeComBot(BaseIMBot):
             "msg_type": "text",
             "content": {"content": content},
         }
+
+    def send_message(self, content: str, msg_type: str = "text") -> bool:
+        """通过企业微信群机器人 Webhook 主动推送消息."""
+        settings = get_settings()
+        webhook = settings.wecom_webhook
+        if not webhook:
+            return False
+
+        body = json.dumps(self.build_response(content, msg_type)).encode("utf-8")
+        return send_webhook_with_retry(webhook, body)
 
 
 class WeComDecryptError(Exception):
