@@ -12,6 +12,7 @@ from starlette.responses import Response
 from app.config import get_settings
 from app.database import Base, engine
 from app.logger import configure_logging, get_logger
+from app.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.routers import (
     access_policies,
     agent,
@@ -59,14 +60,25 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS（MVP 放开本地开发，生产按域名限制）
+    # CORS（生产环境通过 CORS_ORIGINS 限制为前端域名）
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # 基础安全头
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # 请求速率限制（单实例内存实现，多实例需使用 Redis/网关）
+    if settings.rate_limit_enabled:
+        app.add_middleware(
+            RateLimitMiddleware,
+            max_requests=settings.rate_limit_max_requests,
+            window_seconds=settings.rate_limit_window_seconds,
+        )
 
     # 注入 request_id 并记录请求日志
     @app.middleware("http")

@@ -100,7 +100,7 @@ test: backend-test ## 运行全部测试（默认后端测试）
 lint: backend-lint ## 运行全部代码检查（默认后端检查）
 
 backend-test: ## 运行后端测试（使用 SQLite 内存测试库）
-	cd backend && APP_ENV=testing DATABASE_URL="sqlite:///./test.db" python -m pytest
+	cd backend && APP_ENV=testing DATABASE_URL="sqlite:///./test.db" RATE_LIMIT_ENABLED=false python -m pytest
 
 backend-lint: ## 运行后端代码检查（ruff + mypy）
 	cd backend && python -m ruff check app tests

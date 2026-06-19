@@ -110,6 +110,20 @@ class Settings(BaseSettings):
     default_page_size: int = Field(default=20, description="默认分页大小")
     max_page_size: int = Field(default=100, description="最大分页大小")
 
+    # 生产加固
+    cors_origins: list[str] = Field(
+        default=["*"], description="CORS 允许的源列表，生产环境应限制为前端域名"
+    )
+    rate_limit_enabled: bool = Field(
+        default=True, description="是否启用请求速率限制"
+    )
+    rate_limit_max_requests: int = Field(
+        default=120, description="速率限制窗口内最大请求数"
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60, description="速率限制时间窗口（秒）"
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:
