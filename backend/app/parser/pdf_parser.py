@@ -2,9 +2,8 @@
 
 当前实现：
 1. 若配置 Mineru HTTP 服务地址，优先调用外部 Mineru 服务解析；
-2. 否则尝试 pdfplumber 提取表格与文本；
-3. 预留本地 Mineru / Magic-PDF 接口；
-4. 若 pdfplumber 未安装，则降级为 SimpleDocumentParser 兜底。
+2. Mineru 失败或 URL 未配置时，使用 pdfplumber 提取表格与文本；
+3. 若 pdfplumber 未安装，则降级为 SimpleDocumentParser 兜底。
 """
 
 from __future__ import annotations
@@ -44,10 +43,6 @@ class PdfParser(BaseDocumentParser):
                 return client.parse(content, filename)
             except MineruError as exc:
                 logger.warning("Mineru 解析失败，降级到 pdfplumber", error=str(exc))
-
-        # 预留：若 Mineru 已安装，可优先使用其高精度解析结果
-        if _mineru_available():
-            return _parse_with_mineru(content, filename, detected_year, detected_period)
 
         # 默认使用 pdfplumber 提取表格
         try:
@@ -106,20 +101,3 @@ class PdfParser(BaseDocumentParser):
             "text": "\n".join(text_parts),
             "confidence": confidence,
         }
-
-
-def _mineru_available() -> bool:
-    """检测是否已安装 Mineru / Magic-PDF."""
-    import importlib.util
-
-    return importlib.util.find_spec("magic_pdf") is not None
-
-
-def _parse_with_mineru(
-    content: bytes,
-    filename: str,
-    detected_year: int | None,
-    detected_period: str | None,
-) -> dict[str, Any]:
-    """调用 Mineru 解析 PDF（预留实现）."""
-    raise NotImplementedError("Mineru 解析器尚未实现，请先完成 Mineru 服务接入与结果映射。")

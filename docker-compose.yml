@@ -139,6 +139,10 @@ services:
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+      TEXT2SQL_BACKEND: ${TEXT2SQL_BACKEND:-rule}
+      MINERU_API_URL: ${MINERU_API_URL:-}
+      MINERU_TIMEOUT: ${MINERU_TIMEOUT:-120}
+      DIFY_TOOL_API_KEY: ${DIFY_TOOL_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -180,6 +184,9 @@ services:
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+      TEXT2SQL_BACKEND: ${TEXT2SQL_BACKEND:-rule}
+      MINERU_API_URL: ${MINERU_API_URL:-}
+      MINERU_TIMEOUT: ${MINERU_TIMEOUT:-120}
     depends_on:
       db_postgres:
         condition: service_healthy
