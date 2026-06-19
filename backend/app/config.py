@@ -63,6 +63,11 @@ class Settings(BaseSettings):
         default=None, description="Dify 调用后端 Tools 时使用的 API Key"
     )
 
+    # Text2SQL
+    text2sql_backend: str = Field(
+        default="rule", description="Text2SQL 后端: rule/vanna"
+    )
+
     # IM 机器人
     dingtalk_app_secret: str | None = Field(
         default=None, description="钉钉机器人加签密钥"

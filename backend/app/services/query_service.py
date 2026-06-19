@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.text2sql.base import Text2SQLBackend
 from app.text2sql.rule_backend import RuleBasedText2SQLBackend
 from app.text2sql.sql_sandbox import SQLSandbox, SQLSandboxError
@@ -23,12 +24,25 @@ class QueryService:
         """初始化查询服务.
 
         Args:
-            backend: Text2SQL 后端，默认使用规则后端
+            backend: Text2SQL 后端，默认根据配置选择
         """
-        self.backend = backend or RuleBasedText2SQLBackend()
+        self.backend = backend or self._default_backend()
         self.sandbox = SQLSandbox(
             allowed_tables=["financial_reports", "accounts", "vouchers"],
         )
+
+    @staticmethod
+    def _default_backend() -> Text2SQLBackend:
+        """根据配置返回默认 Text2SQL 后端."""
+        settings = get_settings()
+        if settings.text2sql_backend == "vanna":
+            from app.text2sql.vanna_backend import VannaText2SQLBackend
+
+            return VannaText2SQLBackend(
+                model=settings.ollama_model,
+                host=settings.ollama_host,
+            )
+        return RuleBasedText2SQLBackend()
 
     def nl2sql(
         self,

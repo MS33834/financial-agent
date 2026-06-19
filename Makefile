@@ -10,7 +10,7 @@ PROJECT_NAME := financial-agent
 COMPOSE_FILE := docker-compose.yml
 COMPOSE_PROD_FILE := docker-compose.prod.yml
 
-.PHONY: help init validate validate-prod up up-build up-prod down down-volumes logs logs-api logs-backend logs-frontend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-migrate
+.PHONY: help init validate validate-prod up up-build up-prod down down-volumes logs logs-api logs-backend logs-frontend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-migrate backend-seed-demo
 
 help: ## 显示可用命令
 	@echo "Available commands:"
@@ -114,3 +114,6 @@ backend-migrate: ## 运行后端数据库迁移
 
 backend-migration: ## 自动生成数据库迁移脚本（需先确认模型变更）
 	cd backend && alembic revision --autogenerate -m "$(message)"
+
+backend-seed-demo: ## 初始化 MVP 演示财务数据（3 个月 Q1/Q2/Q3）
+	cd backend && python scripts/seed_demo_data.py
