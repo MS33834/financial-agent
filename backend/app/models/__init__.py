@@ -5,6 +5,7 @@ from app.models.approval import Approval
 from app.models.audit_log import AuditLog
 from app.models.document import Document
 from app.models.financial_report import FinancialReport
+from app.models.im_user_mapping import IMUserMapping
 from app.models.report import Report
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -18,4 +19,5 @@ __all__ = [
     "AuditLog",
     "FinancialReport",
     "AccessPolicy",
+    "IMUserMapping",
 ]

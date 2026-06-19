@@ -21,6 +21,7 @@ from app.routers import (
     documents,
     health,
     im,
+    im_user_mappings,
     queries,
     reports,
 )
@@ -107,6 +108,7 @@ def create_app() -> FastAPI:
     app.include_router(access_policies.router)
     app.include_router(dify_tools.router)
     app.include_router(im.router)
+    app.include_router(im_user_mappings.router)
 
     return app
 

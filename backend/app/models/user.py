@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import UUIDBase
 
 if TYPE_CHECKING:
+    from app.models.im_user_mapping import IMUserMapping
     from app.models.tenant import Tenant
 
 
@@ -40,5 +41,8 @@ class User(UUIDBase):
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="users")
+    im_mappings: Mapped[list["IMUserMapping"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (UniqueConstraint("tenant_id", "username", name="uq_tenant_username"),)

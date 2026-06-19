@@ -39,7 +39,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_access_policies_resource_type'), 'access_policies', ['resource_type'], unique=False)
     op.create_index(op.f('ix_access_policies_tenant_id'), 'access_policies', ['tenant_id'], unique=False)
     op.add_column('reports', sa.Column('attributes', sa.JSON(), nullable=True, comment="ABAC 资源属性，如 {'sensitivity': 2, 'department': 'finance'}"))
-    op.add_column('reports', sa.Column('encrypted_summary', app.core.encryption.EncryptedJSON(), nullable=True, comment='加密存储的报告摘要（敏感内容）'))
+    op.add_column('reports', sa.Column('encrypted_summary', sa.Text(), nullable=True, comment='加密存储的报告摘要（敏感内容）'))
     op.add_column('users', sa.Column('attributes', sa.JSON(), nullable=True, comment="ABAC 用户属性，如 {'department': 'finance', 'level': 3}"))
     # ### end Alembic commands ###
 

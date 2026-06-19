@@ -492,6 +492,27 @@ def test_dingtalk_webhook_approve_viewer_forbidden(
         assert "权限不足" in resp.json()["text"]["content"]
 
 
+def test_get_user_by_im_id_mapping_table(
+    db_session: Session,
+    test_user: User,
+) -> None:
+    """通过 IM 用户映射表匹配用户."""
+    from app.models.im_user_mapping import IMUserMapping
+
+    mapping = IMUserMapping(
+        tenant_id=test_user.tenant_id,
+        user_id=test_user.id,
+        platform="dingtalk",
+        im_user_id="ding_mapping_001",
+    )
+    db_session.add(mapping)
+    db_session.commit()
+
+    matched = _get_user_by_im_id(db_session, "ding_mapping_001", platform="dingtalk")
+    assert matched is not None
+    assert matched.id == test_user.id
+
+
 @pytest.fixture
 def wecom_token() -> str:
     return "test-wecom-token"

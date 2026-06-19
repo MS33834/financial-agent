@@ -11,6 +11,7 @@ from app.im.commands import parse_command
 from app.im.dingtalk import DingTalkBot
 from app.im.feishu import FeishuBot
 from app.im.wecom import WeComBot
+from app.models.im_user_mapping import IMUserMapping
 from app.models.user import User
 from app.security import create_access_token
 from app.services.im_service import handle_command
@@ -21,12 +22,28 @@ router = APIRouter(prefix="/api/v1/im", tags=["IM Bot"])
 def _get_user_by_im_id(db: Session, im_user_id: str, platform: str = "dingtalk") -> User | None:
     """根据 IM 用户 ID 查找系统用户.
 
-    优先匹配用户 attributes 中配置的 `{platform}_user_id`；未命中时回退到 username，
-    方便 MVP 阶段快速配置。生产环境建议维护独立的 IM 用户映射表。
+    优先查询独立的 IM 用户映射表；未命中时回退到 user.attributes 中的
+    `{platform}_user_id`，兼容 MVP 阶段的快速配置方式。
     """
     if not im_user_id:
         return None
 
+    mapping: IMUserMapping | None = (
+        db.query(IMUserMapping)
+        .filter(
+            IMUserMapping.platform == platform,
+            IMUserMapping.im_user_id == im_user_id,
+        )
+        .first()
+    )
+    if mapping is not None:
+        user: User | None = db.query(User).filter(
+            User.id == mapping.user_id, User.is_active == "Y"
+        ).first()
+        if user is not None:
+            return user
+
+    # 兼容 attributes 方式
     attr_key = f"{platform}_user_id"
     users: list[User] = db.query(User).filter(User.is_active == "Y").all()
     for user in users:
