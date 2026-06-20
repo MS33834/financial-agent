@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 在 GitHub 主仓提交 Issue
+    url: https://github.com/MS33834/financial-agent/issues/new/choose
+    about: 本仓库以 GitHub 为主仓，GitCode 为镜像。如可能，请优先在 GitHub 主仓提交 Issue。
