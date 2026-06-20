@@ -206,16 +206,50 @@ make shell-ollama   # Ollama
 
 ---
 
-## 7. 下一步
+## 7. 部署与运维
 
-1. **Week 1 Day 1-2**：完成环境初始化（当前已完成基础设施）。
-2. **Week 1 Day 3-4**：在 Dify 中配置 Ollama 模型，验证基础对话。
-3. **Week 1 Day 5**：搭建后端 FastAPI 骨架。
+### 7.1 生产部署
 
-详细任务拆分见 [`mvp_execution_plan.md`](../mvp_execution_plan.md)。
+```bash
+# 1. 初始化配置
+cp .env.example .env
+# 按需修改 SECRET_KEY、CORS_ORIGINS、数据库连接等
+
+# 2. 生产模式启动
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# 3. 查看状态
+make status
+```
+
+详见 [`docs/ops/deployment.md`](docs/ops/deployment.md)。
+
+### 7.2 监控与告警
+
+- 后端暴露 `/metrics`（Prometheus 格式）与 `/api/v1/health` 健康检查端点。
+- 容器非 root 用户运行，前端监听 8080 端口。
+- 默认启用请求速率限制（`RATE_LIMIT_ENABLED=true`）。
+
+详见 [`docs/ops/monitoring.md`](docs/ops/monitoring.md)。
+
+### 7.3 API 文档
+
+- 本地启动后访问 http://localhost:8000/docs
+- 或导入 [`docs/postman/financial-agent.postman_collection.json`](docs/postman/financial-agent.postman_collection.json)
 
 ---
 
-## 8. 许可证
+## 8. 项目状态
+
+- [x] 基础架构与 DevOps 基线
+- [x] Dify + LangGraph + Text2SQL 骨架
+- [x] PDF 解析、数据 Pipeline、基础报表
+- [x] 人工审核、RBAC、审计日志、集成测试
+- [x] CI/CD 扩展与生产就绪加固
+- [x] 运维文档与监控基线
+
+---
+
+## 9. 许可证
 
 MIT

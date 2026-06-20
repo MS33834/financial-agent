@@ -120,3 +120,7 @@ backend-seed-demo: ## 初始化 MVP 演示财务数据（3 个月 Q1/Q2/Q3）
 
 backend-train-vanna: ## 训练 Vanna Text2SQL 模型
 	cd backend && DATABASE_URL=$(DATABASE_URL) OLLAMA_MODEL=$(OLLAMA_MODEL) OLLAMA_HOST=$(OLLAMA_HOST) python scripts/train_vanna.py
+
+backend-benchmark: ## 后端关键接口性能基线测试（默认 http://localhost:8000）
+	cd backend && python scripts/benchmark.py $(url)
+

@@ -12,6 +12,7 @@ from starlette.responses import Response
 from app.config import get_settings
 from app.database import Base, engine
 from app.logger import configure_logging, get_logger
+from app.metrics import PrometheusMiddleware, metrics_response
 from app.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.routers import (
     access_policies,
@@ -80,6 +81,9 @@ def create_app() -> FastAPI:
             window_seconds=settings.rate_limit_window_seconds,
         )
 
+    # Prometheus HTTP 指标采集
+    app.add_middleware(PrometheusMiddleware)
+
     # 注入 request_id 并记录请求日志
     @app.middleware("http")
     async def add_request_id(
@@ -125,6 +129,11 @@ def create_app() -> FastAPI:
     app.include_router(im_user_mappings.router)
     app.include_router(api_keys.router)
     app.include_router(agent.router)
+
+    # Prometheus 指标端点（标准 /metrics，不进入 API 文档）
+    @app.get("/metrics", include_in_schema=False)
+    def _metrics() -> Response:
+        return metrics_response()
 
     return app
 
