@@ -13,6 +13,7 @@ from app.models.report import Report
 from app.models.user import User
 from app.reporting.generator import ReportGenerationError, ReportGenerator
 from app.services.audit_service import log_action
+from app.tasks.utils import is_retryable_error
 
 # 平台到机器人类的映射
 _PLATFORM_BOTS: dict[str, type[DingTalkBot | FeishuBot | WeComBot]] = {
@@ -23,23 +24,17 @@ _PLATFORM_BOTS: dict[str, type[DingTalkBot | FeishuBot | WeComBot]] = {
 
 
 def _get_report(db: Session, report_id: str) -> Report | None:
-    """按 ID 获取报告."""
     return db.query(Report).filter(Report.id == report_id).first()
 
 
 def _get_report_creator(db: Session, report: Report) -> User | None:
-    """获取报告创建者."""
     if not report.created_by:
         return None
     return db.query(User).filter(User.id == report.created_by).first()
 
 
 def _notify_approvers(db: Session, report: Report) -> None:
-    """报告生成成功后通知具备审批权限的用户.
-
-    根据当前租户内 admin/auditor 用户的 IM 映射以及已配置的 Webhook，
-    通过对应平台的机器人主动推送通知。推送失败不影响主流程。
-    """
+    """通知具备审批权限的用户，失败不影响主流程。"""
     settings = get_settings()
     configured_platforms = {
         platform
@@ -94,7 +89,6 @@ def _update_report_status(
     summary: str | None = None,
     error_message: str | None = None,
 ) -> None:
-    """更新报告状态与生成结果."""
     report.status = status
     if content is not None:
         report.content = content
@@ -107,14 +101,7 @@ def _update_report_status(
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10)  # type: ignore[untyped-decorator]
 def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
-    """异步生成报告任务.
-
-    Args:
-        report_id: 待生成报告的 ID。
-
-    Returns:
-        生成结果摘要。
-    """
+    """异步生成报告任务。"""
     db = SessionLocal()
     try:
         report = _get_report(db, report_id)
@@ -195,6 +182,13 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
                 reason=str(exc),
                 user=creator,
             )
-        raise self.retry(exc=exc) from exc
+        if is_retryable_error(exc):
+            raise self.retry(exc=exc) from exc
+        return {
+            "report_id": report_id,
+            "status": "failed",
+            "error": str(exc),
+            "retry": False,
+        }
     finally:
         db.close()

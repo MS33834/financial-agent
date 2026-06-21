@@ -35,15 +35,15 @@ export default function ReportCreate({ onCreated }: ReportCreateProps) {
 
   return (
     <div className="card">
-      <h3>新建报告</h3>
-      {error && <div className="error">{error}</div>}
+      <h3 className="card-title">新建报告</h3>
+      {error && <div className="alert alert-error mb-4">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>标题</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div className="form-group" style={{ flex: 1 }}>
+        <div className="form-row">
+          <div className="form-group">
             <label>类型</label>
             <select value={reportType} onChange={(e) => setReportType(e.target.value)}>
               <option value="profit">利润表</option>
@@ -51,7 +51,7 @@ export default function ReportCreate({ onCreated }: ReportCreateProps) {
               <option value="cash">现金流量表</option>
             </select>
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="form-group">
             <label>年份</label>
             <input
               type="number"
@@ -60,7 +60,7 @@ export default function ReportCreate({ onCreated }: ReportCreateProps) {
               required
             />
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="form-group">
             <label>周期</label>
             <select value={period} onChange={(e) => setPeriod(e.target.value)}>
               <option value="Q1">Q1</option>

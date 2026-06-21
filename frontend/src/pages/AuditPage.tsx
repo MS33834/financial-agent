@@ -3,6 +3,7 @@ import NavBar from '../components/NavBar.tsx'
 import { api } from '../api/client'
 import type { AuditLog } from '../types/audit'
 import AuditLogList from '../components/AuditLogList'
+import Loading from '../components/ui/Loading.tsx'
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([])
@@ -28,9 +29,9 @@ export default function AuditPage() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header">
         <h1>审计日志</h1>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div className="actions">
           <NavBar />
           <button className="secondary" onClick={fetchLogs}>
             刷新
@@ -38,9 +39,9 @@ export default function AuditPage() {
         </div>
       </div>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="alert alert-error mb-4">{error}</div>}
 
-      {loading ? <p>加载中...</p> : <AuditLogList logs={logs} />}
+      {loading ? <Loading text="加载审计日志中..." /> : <AuditLogList logs={logs} />}
     </div>
   )
 }

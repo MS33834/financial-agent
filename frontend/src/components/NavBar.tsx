@@ -10,7 +10,6 @@ export default function NavBar({ showLogout = false }: NavBarProps) {
   const location = useLocation()
 
   const isActive = (path: string) => location.pathname === path
-
   const canApprove = role === 'admin' || role === 'auditor'
 
   const links = [
@@ -24,14 +23,16 @@ export default function NavBar({ showLogout = false }: NavBarProps) {
   return (
     <nav className="navbar">
       {links.map((link) => (
-        <Link key={link.path} to={link.path}>
-          <button className={isActive(link.path) ? '' : 'secondary'}>
-            {link.label}
-          </button>
+        <Link
+          key={link.path}
+          to={link.path}
+          className={`nav-link ${isActive(link.path) ? 'active' : ''}`}
+        >
+          {link.label}
         </Link>
       ))}
       {showLogout && (
-        <button className="secondary" onClick={logout}>
+        <button className="nav-link ghost" onClick={logout}>
           退出登录
         </button>
       )}

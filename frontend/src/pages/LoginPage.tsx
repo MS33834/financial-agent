@@ -25,30 +25,39 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container">
-      <div className="card" style={{ maxWidth: 420, margin: '80px auto' }}>
-        <h2>企业级财务智能体</h2>
-        <p>请登录后继续</p>
-        {error && <div className="error">{error}</div>}
+    <div className="container center login-page">
+      <div className="card login-card">
+        <div className="login-brand">
+          <div className="login-brand-icon">F</div>
+          <h2 className="login-brand-title">企业级财务智能体</h2>
+          <p className="login-brand-desc">请登录后继续</p>
+        </div>
+
+        {error && <div className="alert alert-error mb-4">{error}</div>}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>用户名</label>
+            <label htmlFor="username">用户名</label>
             <input
+              id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
               required
             />
           </div>
           <div className="form-group">
-            <label>密码</label>
+            <label htmlFor="password">密码</label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               required
             />
           </div>
-          <button type="submit" disabled={loading}>
+          <button type="submit" disabled={loading} className="login-submit">
             {loading ? '登录中...' : '登录'}
           </button>
         </form>

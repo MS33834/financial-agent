@@ -5,6 +5,7 @@ import type { Report } from '../types/report.ts'
 import ReportList from '../components/ReportList.tsx'
 import ReportDetail from '../components/ReportDetail.tsx'
 import ReportCreate from '../components/ReportCreate.tsx'
+import Loading from '../components/ui/Loading.tsx'
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
@@ -35,20 +36,16 @@ export default function ReportsPage() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header">
         <h1>财务报告中心</h1>
         <NavBar showLogout />
       </div>
 
       <ReportCreate onCreated={handleCreated} />
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="alert alert-error mb-4">{error}</div>}
 
-      {loading ? (
-        <p>加载中...</p>
-      ) : (
-        <ReportList reports={reports} onSelect={setSelected} />
-      )}
+      {loading ? <Loading text="加载报告中..." /> : <ReportList reports={reports} onSelect={setSelected} />}
 
       {selected && <ReportDetail report={selected} onClose={() => setSelected(null)} />}
     </div>

@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { api } from '../api/client.ts'
 import type { Report } from '../types/report.ts'
+import Modal from './ui/Modal.tsx'
+import Badge from './ui/Badge.tsx'
 import {
   BarChart,
   Bar,
@@ -46,28 +48,59 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{report.title}</h2>
-        <p>
-          <span className={`badge ${report.status}`}>{report.status}</span>
-          <span style={{ marginLeft: 12 }}>类型: {report.report_type}</span>
-        </p>
+    <Modal
+      title={report.title}
+      onClose={onClose}
+      footer={
+        <>
+          <select
+            value={format}
+            onChange={(e) => setFormat(e.target.value as 'pdf' | 'xlsx' | 'markdown' | 'json')}
+          >
+            <option value="pdf">PDF</option>
+            <option value="xlsx">Excel</option>
+            <option value="markdown">Markdown</option>
+            <option value="json">JSON</option>
+          </select>
+          <button onClick={handleExport} disabled={exporting}>
+            {exporting ? '导出中...' : '导出'}
+          </button>
+          {report.content_url && (
+            <a href={report.content_url} target="_blank" rel="noreferrer" className="link">
+              已导出文件
+            </a>
+          )}
+          <button className="secondary" onClick={onClose}>
+            关闭
+          </button>
+        </>
+      }
+    >
+      <div className="detail-grid">
+        <div>
+          <span className="text-muted text-sm">状态</span>
+          <div>
+            <Badge status={report.status} />
+            <span className="text-muted text-sm ml-3">
+              类型: {report.report_type}
+            </span>
+          </div>
+        </div>
 
         {report.error_message && (
-          <div className="error">生成错误: {report.error_message}</div>
+          <div className="alert alert-error">生成错误: {report.error_message}</div>
         )}
 
         {report.summary && (
-          <div className="card">
-            <h4>摘要</h4>
+          <div>
+            <span className="text-muted text-sm">摘要</span>
             <p>{report.summary}</p>
           </div>
         )}
 
         {report.content && (
-          <div className="card">
-            <h4>指标</h4>
+          <div>
+            <span className="text-muted text-sm">指标</span>
             <div className="table-wrapper">
               <table>
                 <thead>
@@ -87,7 +120,7 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
               </table>
             </div>
             {chartData.length > 0 && (
-              <div style={{ width: '100%', height: 300, marginTop: 16 }}>
+              <div className="modal-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -102,31 +135,8 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
           </div>
         )}
 
-        <div className="actions">
-          <select
-            value={format}
-            onChange={(e) => setFormat(e.target.value as 'pdf' | 'xlsx' | 'markdown' | 'json')}
-          >
-            <option value="pdf">PDF</option>
-            <option value="xlsx">Excel</option>
-            <option value="markdown">Markdown</option>
-            <option value="json">JSON</option>
-          </select>
-          <button onClick={handleExport} disabled={exporting}>
-            {exporting ? '导出中...' : '导出'}
-          </button>
-          {report.content_url && (
-            <a href={report.content_url} target="_blank" rel="noreferrer">
-              已导出文件
-            </a>
-          )}
-          <button className="secondary" onClick={onClose}>
-            关闭
-          </button>
-        </div>
-
-        {exportError && <div className="error">{exportError}</div>}
+        {exportError && <div className="alert alert-error">{exportError}</div>}
       </div>
-    </div>
+    </Modal>
   )
 }

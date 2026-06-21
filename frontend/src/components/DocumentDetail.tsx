@@ -1,3 +1,5 @@
+import Badge from './ui/Badge.tsx'
+import Modal from './ui/Modal.tsx'
 import type { Document } from '../types/document'
 
 interface DocumentDetailProps {
@@ -5,37 +7,26 @@ interface DocumentDetailProps {
   onClose: () => void
 }
 
-const statusMap: Record<string, string> = {
-  pending: '待处理',
-  processing: '解析中',
-  success: '成功',
-  failed: '失败',
-  needs_review: '待复核',
-}
-
 export default function DocumentDetail({ document: doc, onClose }: DocumentDetailProps) {
   return (
-    <div className="modal" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>{doc.filename}</h2>
-          <button className="secondary" onClick={onClose}>
-            关闭
-          </button>
+    <Modal title={doc.filename} onClose={onClose}>
+      <div className="detail-grid">
+        <div>
+          <span className="text-muted text-sm">状态</span>
+          <div>
+            <Badge status={doc.status} />
+          </div>
         </div>
 
-        <p>
-          <strong>状态：</strong>
-          {statusMap[doc.status] || doc.status}
-        </p>
         {doc.confidence !== null && doc.confidence !== undefined && (
-          <p>
-            <strong>置信度：</strong>
-            {(doc.confidence * 100).toFixed(0)}%
-          </p>
+          <div>
+            <span className="text-muted text-sm">置信度</span>
+            <div>{(doc.confidence * 100).toFixed(0)}%</div>
+          </div>
         )}
+
         {doc.error_message && (
-          <div className="error">
+          <div className="alert alert-error">
             <strong>错误：</strong>
             {doc.error_message}
           </div>
@@ -43,21 +34,13 @@ export default function DocumentDetail({ document: doc, onClose }: DocumentDetai
 
         {doc.parse_result && (
           <div>
-            <strong>解析结果：</strong>
-            <pre
-              style={{
-                background: '#f5f5f5',
-                padding: '1rem',
-                borderRadius: '4px',
-                overflow: 'auto',
-                maxHeight: '400px',
-              }}
-            >
+            <span className="text-muted text-sm">解析结果</span>
+            <pre className="code-block">
               {JSON.stringify(doc.parse_result, null, 2)}
             </pre>
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   )
 }

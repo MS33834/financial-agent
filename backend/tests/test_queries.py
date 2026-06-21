@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.financial_report import FinancialReport
 from app.models.tenant import Tenant
+from app.services.query_service import QueryService
 
 
 def _seed_report(
@@ -88,3 +89,21 @@ def test_nl2sql_unauthorized(client: TestClient) -> None:
     """测试未认证访问被拒绝."""
     response = client.post("/api/v1/queries/nl2sql", json={"question": "test"})
     assert response.status_code == 401
+
+
+def test_nl2sql_parameter_binding_prevents_injection(
+    db_session: Session,
+    test_tenant: Tenant,
+) -> None:
+    """测试 tenant_id 通过参数绑定注入，不会被当作 SQL 执行."""
+    _seed_report(db_session, test_tenant, 2025, "Q2", 1_000_000.0)
+
+    malicious_tenant_id = "'; DROP TABLE financial_reports; --"
+    result = QueryService().nl2sql(
+        question="2025 年 Q2 净利润是多少",
+        tenant_id=malicious_tenant_id,
+        db=db_session,
+    )
+    # 不应抛出异常，也不应返回数据（因为恶意 tenant_id 不会命中任何记录）
+    assert result["data"] == []
+    assert "DROP TABLE" not in result["sql"]

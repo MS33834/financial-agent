@@ -56,8 +56,8 @@ export default function DocumentUpload({ onUploaded }: DocumentUploadProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem' }}>
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+    <form onSubmit={handleSubmit}>
+      <div className="file-input">
         <input
           id="file-input"
           type="file"
@@ -69,7 +69,7 @@ export default function DocumentUpload({ onUploaded }: DocumentUploadProps) {
           {uploading ? '上传中...' : '上传并解析'}
         </button>
       </div>
-      {error && <div className="error">{error}</div>}
+      {error && <div className="alert alert-error">{error}</div>}
     </form>
   )
 }

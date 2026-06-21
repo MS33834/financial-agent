@@ -1,3 +1,5 @@
+import Badge from './ui/Badge.tsx'
+import EmptyState from './ui/EmptyState.tsx'
 import type { Report } from '../types/report.ts'
 
 interface ReportListProps {
@@ -7,12 +9,11 @@ interface ReportListProps {
 
 export default function ReportList({ reports, onSelect }: ReportListProps) {
   if (reports.length === 0) {
-    return <p>暂无报告</p>
+    return <EmptyState title="暂无报告" description="创建报告后，它们会出现在这里。" />
   }
 
   return (
-    <div className="card">
-      <h3>报告列表</h3>
+    <div className="table-wrapper">
       <table>
         <thead>
           <tr>
@@ -29,11 +30,13 @@ export default function ReportList({ reports, onSelect }: ReportListProps) {
               <td>{report.title}</td>
               <td>{report.report_type}</td>
               <td>
-                <span className={`badge ${report.status}`}>{report.status}</span>
+                <Badge status={report.status} />
               </td>
               <td>{new Date(report.created_at).toLocaleString()}</td>
               <td>
-                <button onClick={() => onSelect(report)}>查看</button>
+                <button className="secondary" onClick={() => onSelect(report)}>
+                  查看
+                </button>
               </td>
             </tr>
           ))}

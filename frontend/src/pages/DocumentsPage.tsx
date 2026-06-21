@@ -5,6 +5,7 @@ import type { Document } from '../types/document'
 import DocumentDetail from '../components/DocumentDetail'
 import DocumentList from '../components/DocumentList'
 import DocumentUpload from '../components/DocumentUpload'
+import Loading from '../components/ui/Loading.tsx'
 
 const statusOptions: { value: string; label: string }[] = [
   { value: '', label: '全部' },
@@ -48,18 +49,17 @@ export default function DocumentsPage() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header">
         <h1>文档解析中心</h1>
         <NavBar />
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
-        <label htmlFor="status-filter">状态筛选：</label>
+      <div className="toolbar">
+        <label htmlFor="status-filter">状态筛选</label>
         <select
           id="status-filter"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          style={{ minWidth: 140 }}
         >
           {statusOptions.map((option) => (
             <option key={option.value} value={option.value}>
@@ -71,13 +71,9 @@ export default function DocumentsPage() {
 
       <DocumentUpload onUploaded={handleUploaded} />
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="alert alert-error mb-4">{error}</div>}
 
-      {loading ? (
-        <p>加载中...</p>
-      ) : (
-        <DocumentList documents={documents} onSelect={setSelected} />
-      )}
+      {loading ? <Loading text="加载文档中..." /> : <DocumentList documents={documents} onSelect={setSelected} />}
 
       {selected && <DocumentDetail document={selected} onClose={() => setSelected(null)} />}
     </div>

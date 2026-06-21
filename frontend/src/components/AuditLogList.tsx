@@ -1,3 +1,4 @@
+import EmptyState from './ui/EmptyState.tsx'
 import type { AuditLog } from '../types/audit'
 
 interface AuditLogListProps {
@@ -6,7 +7,7 @@ interface AuditLogListProps {
 
 export default function AuditLogList({ logs }: AuditLogListProps) {
   if (logs.length === 0) {
-    return <p>暂无审计日志</p>
+    return <EmptyState title="暂无审计日志" description="系统操作记录将显示在这里。" />
   }
 
   return (

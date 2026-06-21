@@ -16,15 +16,14 @@ from app.parser.utils import extract_period, extract_year
 from app.services.audit_service import log_action
 from app.services.financial_import_service import import_financial_records
 from app.storage import get_storage_client
+from app.tasks.utils import is_retryable_error
 
 
 def _get_document(db: Session, document_id: str) -> Document | None:
-    """按 ID 获取文档."""
     return db.query(Document).filter(Document.id == document_id).first()
 
 
 def _get_document_user(db: Session, document: Document | None) -> User | None:
-    """获取文档创建者用户."""
     if document is None or not document.created_by:
         return None
     return db.query(User).filter(User.id == document.created_by).first()
@@ -38,7 +37,6 @@ def _update_document_status(
     confidence: float | None = None,
     error_message: str | None = None,
 ) -> None:
-    """更新文档解析状态与结果."""
     document.status = status
     if parse_result is not None:
         document.parse_result = parse_result
@@ -50,20 +48,12 @@ def _update_document_status(
 
 
 def _file_extension(filename: str) -> str:
-    """获取文件扩展名."""
     return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10)  # type: ignore[untyped-decorator]
 def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
-    """异步解析文档任务.
-
-    Args:
-        document_id: 待解析文档 ID
-
-    Returns:
-        解析结果摘要
-    """
+    """异步解析文档任务。"""
     db = SessionLocal()
     try:
         document = _get_document(db, document_id)
@@ -178,8 +168,14 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
                 reason=str(exc),
                 user=user,
             )
-        # 可重试异常则自动重试
-        raise self.retry(exc=exc) from exc
+        if is_retryable_error(exc):
+            raise self.retry(exc=exc) from exc
+        return {
+            "document_id": document_id,
+            "status": "failed",
+            "error": str(exc),
+            "retry": False,
+        }
     finally:
         db.close()
 
@@ -188,11 +184,6 @@ def _parse_csv_document(
     document: Document,
     content: bytes,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """解析 CSV 财务文件.
-
-    Returns:
-        (parse_result, records)
-    """
     parser = CsvFinancialParser(content)
     records = parser.parse()
 
