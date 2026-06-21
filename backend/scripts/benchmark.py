@@ -55,8 +55,8 @@ def main() -> None:
     requests_per_endpoint = int(os.getenv("BENCH_REQUESTS", "10"))
 
     public_endpoints = [
-        ("/api/v1/health", "GET", 200, None),
-        ("/api/v1/health/ready", "GET", 200, None),
+        ("/health", "GET", 200, None),
+        ("/health/ready", "GET", 200, None),
         ("/metrics", "GET", 200, None),
     ]
 
