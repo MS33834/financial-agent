@@ -630,6 +630,15 @@ tbody tr:hover {
   flex-wrap: wrap;
 }
 
+.action-group {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.full-width {
+  width: 100%;
+}
+
 /* Utilities */
 .text-muted {
   color: var(--color-text-secondary);

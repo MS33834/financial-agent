@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { api } from '../api/client'
+import NavBar from '../components/NavBar.tsx'
+import Loading from '../components/ui/Loading.tsx'
+import EmptyState from '../components/ui/EmptyState.tsx'
 import type { Approval } from '../types/approval'
 
 const statusMap: Record<string, string> = {
@@ -25,7 +27,7 @@ export default function ApprovalsPage() {
       setApprovals(response.data.data.items)
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 403) {
-        setError('无权限')
+        setError('无权限访问审批记录')
       } else {
         setError('加载审批记录失败')
       }
@@ -49,7 +51,7 @@ export default function ApprovalsPage() {
       await fetchApprovals()
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 403) {
-        setError('无权限')
+        setError('无权限执行该操作')
       } else {
         setError('操作失败')
       }
@@ -60,86 +62,80 @@ export default function ApprovalsPage() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header">
         <h1>人工审批</h1>
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <Link to="/">
-            <button className="secondary">财务报告</button>
-          </Link>
-          <Link to="/documents">
-            <button className="secondary">文档解析</button>
-          </Link>
-          <Link to="/audit">
-            <button className="secondary">审计日志</button>
-          </Link>
+        <div className="actions">
+          <NavBar />
           <button className="secondary" onClick={fetchApprovals}>
             刷新
           </button>
         </div>
       </div>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="alert alert-error mb-4">{error}</div>}
 
       {loading ? (
-        <p>加载中...</p>
+        <Loading text="加载审批记录中..." />
       ) : approvals.length === 0 ? (
-        <p>暂无审批记录</p>
+        <EmptyState title="暂无审批记录" description="当有报告需要审批时，将显示在这里。" />
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>报告</th>
-              <th>状态</th>
-              <th>审批人</th>
-              <th>备注</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {approvals.map((approval) => (
-              <tr key={approval.id}>
-                <td>{approval.report_title}</td>
-                <td>{statusMap[approval.status] || approval.status}</td>
-                <td>{approval.reviewer_name || '-'}</td>
-                <td>
-                  <input
-                    value={comments[approval.report_id] || ''}
-                    onChange={(e) =>
-                      setComments((prev) => ({
-                        ...prev,
-                        [approval.report_id]: e.target.value,
-                      }))
-                    }
-                    placeholder="审批备注（可选）"
-                    disabled={acting[approval.report_id] || approval.status !== 'pending'}
-                    style={{ width: '100%' }}
-                  />
-                </td>
-                <td>
-                  {approval.status === 'pending' ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={() => handleAction(approval.report_id, 'approve')}
-                        disabled={acting[approval.report_id]}
-                      >
-                        通过
-                      </button>
-                      <button
-                        className="secondary"
-                        onClick={() => handleAction(approval.report_id, 'reject')}
-                        disabled={acting[approval.report_id]}
-                      >
-                        驳回
-                      </button>
-                    </div>
-                  ) : (
-                    '-'
-                  )}
-                </td>
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>报告</th>
+                <th>状态</th>
+                <th>审批人</th>
+                <th>备注</th>
+                <th>操作</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {approvals.map((approval) => (
+                <tr key={approval.id}>
+                  <td>{approval.report_title}</td>
+                  <td>{statusMap[approval.status] || approval.status}</td>
+                  <td>{approval.reviewer_name || '-'}</td>
+                  <td>
+                    <input
+                      value={comments[approval.report_id] || ''}
+                      onChange={(e) =>
+                        setComments((prev) => ({
+                          ...prev,
+                          [approval.report_id]: e.target.value,
+                        }))
+                      }
+                      placeholder="审批备注（可选）"
+                      disabled={acting[approval.report_id] || approval.status !== 'pending'}
+                      className="full-width"
+                    />
+                  </td>
+                  <td>
+                    {approval.status === 'pending' ? (
+                      <div className="action-group">
+                        <button
+                          onClick={() => handleAction(approval.report_id, 'approve')}
+                          disabled={acting[approval.report_id]}
+                        >
+                          通过
+                        </button>
+                        <button
+                          className="secondary"
+                          onClick={() => handleAction(approval.report_id, 'reject')}
+                          disabled={acting[approval.report_id]}
+                        >
+                          驳回
+                        </button>
+                      </div>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

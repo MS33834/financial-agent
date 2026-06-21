@@ -26,6 +26,12 @@ scrape_configs:
     scrape_interval: 15s
 ```
 
+## Grafana 看板
+
+- 看板模板：[grafana-dashboard.json](./grafana-dashboard.json)
+- 导入方式：Grafana UI → Dashboards → Import → 上传 JSON 文件
+- 数据源：选择已配置的 Prometheus
+
 ## 建议告警规则
 
 | 规则 | 阈值 | 级别 |

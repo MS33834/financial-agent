@@ -1,0 +1,84 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Financial Agent Backend",
+    "tags": ["financial-agent"],
+    "timezone": "Asia/Shanghai",
+    "schemaVersion": 36,
+    "refresh": "15s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP 请求速率",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(fa_http_requests_total_count[1m]))",
+            "legendFormat": "req/s"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "P95 响应时间",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(fa_http_requests_total_bucket[5m])) by (le))",
+            "legendFormat": "P95"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "5xx 错误率",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(fa_http_requests_total_count{status_code=~\"5..\"}[5m])) / sum(rate(fa_http_requests_total_count[5m]))",
+            "legendFormat": "5xx rate"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "按路径请求耗时分布",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(fa_http_requests_total_bucket[5m])) by (path, le))",
+            "legendFormat": "{{path}}"
+          }
+        ],
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "进程内存占用",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "fa_process_resident_memory_bytes",
+            "legendFormat": "resident memory"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18}
+      },
+      {
+        "id": 6,
+        "title": "进程 CPU 时间",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(fa_process_cpu_seconds_total[1m])",
+            "legendFormat": "cpu"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18}
+      }
+    ]
+  }
+}
