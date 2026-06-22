@@ -14,6 +14,7 @@ from app.im.commands import format_approval_result, parse_command
 from app.im.dingtalk import DingTalkBot
 from app.im.feishu import FeishuBot
 from app.im.wecom import WeComBot
+from app.models.access_policy import AccessPolicy
 from app.models.im_user_mapping import IMUserMapping
 from app.models.report import Report
 from app.models.tenant import Tenant
@@ -460,7 +461,9 @@ def test_dingtalk_webhook_pending_reports(
             json={"text": {"content": "/pending"}, "senderStaffId": "ding_approver"},
         )
         assert resp.status_code == 200
-        assert report_id in resp.json()["text"]["content"]
+        content = resp.json()["text"]["content"]
+        assert "IM 审批测试" in content
+        assert report_id[:8] in content
 
 
 def test_dingtalk_webhook_approve_non_reviewing_report(
@@ -544,6 +547,91 @@ def test_dingtalk_webhook_approve_viewer_forbidden(
         )
         assert resp.status_code == 200
         assert "权限不足" in resp.json()["text"]["content"]
+
+
+def test_dingtalk_webhook_approve_by_index(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """通过序号审批最近 /pending 列表中的报告."""
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
+    db_session.commit()
+    report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
+
+    # 先执行 /pending 缓存序号映射
+    with _mock_bot():
+        client.post(
+            "/api/v1/im/dingtalk",
+            json={"text": {"content": "/pending"}, "senderStaffId": "ding_approver"},
+        )
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={"text": {"content": "/approve 1 comment=同意"}, "senderStaffId": "ding_approver"},
+        )
+        assert resp.status_code == 200
+        assert "approve" in resp.json()["text"]["content"]
+
+    report_resp = client.get(f"/api/v1/reports/{report_id}", headers=auth_headers)
+    assert report_resp.json()["data"]["status"] == "approved"
+
+
+def test_dingtalk_webhook_approve_abac_denied(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ABAC 策略拒绝时 IM 审批应被拦截."""
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
+    db_session.commit()
+    report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
+
+    # 配置 ABAC 策略：禁止 report_type=cash 的审批
+    policy = AccessPolicy(
+        tenant_id=test_user.tenant_id,
+        name="deny cash approval",
+        resource_type="report",
+        action="approve",
+        effect="deny",
+        priority=1,
+        conditions={"resource.report_type": "cash"},
+    )
+    db_session.add(policy)
+    db_session.commit()
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": f"/approve report_id={report_id}"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "ABAC 策略拒绝" in resp.json()["text"]["content"]
+
+    report_resp = client.get(f"/api/v1/reports/{report_id}", headers=auth_headers)
+    assert report_resp.json()["data"]["status"] == "reviewing"
 
 
 def test_get_user_by_im_id_mapping_table(

@@ -62,12 +62,18 @@ def _handle_message(message: IMMessage, platform: str, db: Session) -> dict[str,
     if message.text.startswith("/help"):
         help_text = (
             "可用命令：\n"
-            "/query <问题>\n"
-            "/report <类型> [title=标题] [year=年份] [period=期间]\n"
+            "/query <问题> — 自然语言查询财务数据\n"
+            "/report <类型> [title=标题] [year=年份] [period=期间] — 创建报告\n"
+            "/pending — 查看待审核报告列表（带序号）\n"
+            "/approve <序号|report_id> [action=approve|reject|modify] [comment=意见] — 审批报告\n"
+            "/reject <序号|report_id> [comment=意见] — 驳回报告\n"
+            "/modify <序号|report_id> [comment=意见] — 退回修改报告\n"
+            "示例：\n"
+            "/query 2025年Q2营业收入\n"
+            "/report profit year=2025 period=Q2\n"
             "/pending\n"
-            "/approve report_id=<ID> [action=approve|reject|modify] [comment=意见]\n"
-            "/reject report_id=<ID> [comment=意见]\n"
-            "/modify report_id=<ID> [comment=意见]"
+            "/approve 1 comment=同意发布\n"
+            "/approve report_id=xxx action=reject comment=数据需核对"
         )
         return bot.build_response(help_text)
 
@@ -82,7 +88,7 @@ def _handle_message(message: IMMessage, platform: str, db: Session) -> dict[str,
 
     token = create_access_token({"sub": user.id})
     try:
-        reply = handle_command(command, token)
+        reply = handle_command(command, token, db, user)
     except Exception as exc:  # noqa: BLE001
         return bot.build_error_response(str(exc))
 

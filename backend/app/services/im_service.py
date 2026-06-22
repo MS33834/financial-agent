@@ -9,13 +9,21 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
+from app.core.abac import ABACEngine
 from app.im.commands import (
     BotCommand,
     format_approval_result,
     format_nl2sql_result,
     format_report_result,
 )
+from app.models.access_policy import AccessPolicy
+from app.models.user import User
+from app.services.report_service import get_report
+
+# 每个 IM 用户最近查询的待审报告 ID 列表，支持 /approve 序号 快速审批
+_pending_reports: dict[str, list[str]] = {}
 
 
 class IMServiceError(Exception):
@@ -76,23 +84,100 @@ def _format_api_error(exc: IMServiceError) -> str:
     return "操作失败：服务处理异常，请稍后重试或联系管理员。"
 
 
-def handle_command(command: BotCommand, token: str) -> str:
+def _resolve_report_id_from_command(
+    command: BotCommand, user_id: str
+) -> tuple[str | None, str | None]:
+    """从命令中解析 report_id，支持序号引用最近 /pending 结果.
+
+    Returns:
+        (report_id, error_message)。解析失败时返回 (None, 错误提示)。
+    """
+    raw = command.kwargs.get("report_id") or (command.args[0] if command.args else "")
+    if not raw:
+        return None, "请输入 report_id 或序号，例如：/approve report_id=xxx 或 /approve 1"
+
+    if raw.isdigit():
+        index = int(raw) - 1
+        cached = _pending_reports.get(user_id, [])
+        if not cached:
+            return None, "未找到待审报告缓存，请先执行 /pending 查看列表。"
+        if index < 0 or index >= len(cached):
+            return None, f"序号 {raw} 超出范围，当前 /pending 列表共 {len(cached)} 条。"
+        return cached[index], None
+
+    return raw, None
+
+
+def _has_abac_policy_for_approval(user: User, db: Session) -> bool:
+    """租户是否已配置 report/approve 的 ABAC 策略."""
+    return (
+        db.query(AccessPolicy)
+        .filter(
+            AccessPolicy.tenant_id == user.tenant_id,
+            AccessPolicy.resource_type == "report",
+            AccessPolicy.action == "approve",
+            AccessPolicy.is_active.is_(True),
+        )
+        .first()
+        is not None
+    )
+
+
+def _check_abac_approval_permission(
+    user: User, report_id: str, db: Session
+) -> tuple[bool, str | None]:
+    """通过 ABAC 校验用户是否有权审批指定报告.
+
+    若租户未配置 report/approve 的 ABAC 策略，则保持现有 RBAC 行为，
+    避免默认拒绝影响已有审批流程。
+
+    Returns:
+        (是否允许, 错误提示)。
+    """
+    report = get_report(db, report_id, user.tenant_id)
+    if report is None:
+        return False, "未找到指定报告，请检查 report_id 是否正确。"
+
+    if not _has_abac_policy_for_approval(user, db):
+        return True, None
+
+    engine = ABACEngine(db)
+    allowed = engine.evaluate(
+        user,
+        "report",
+        "approve",
+        resource_attributes={
+            "id": str(report.id),
+            "report_type": report.report_type,
+            "status": report.status,
+            "created_by": report.created_by,
+            "tenant_id": report.tenant_id,
+        },
+    )
+    if not allowed:
+        return False, "ABAC 策略拒绝此次审批，请联系管理员调整策略。"
+    return True, None
+
+
+def handle_command(command: BotCommand, token: str, db: Session, user: User) -> str:
     """处理机器人命令.
 
     Args:
         command: 解析后的命令。
         token: 当前用户的 JWT Token。
+        db: 数据库会话。
+        user: 当前 IM 用户对应的系统用户。
 
     Returns:
         回复文本。
     """
     try:
-        return _handle_command(command, token)
+        return _handle_command(command, token, db, user)
     except IMServiceError as exc:
         return _format_api_error(exc)
 
 
-def _handle_command(command: BotCommand, token: str) -> str:
+def _handle_command(command: BotCommand, token: str, db: Session, user: User) -> str:
     """实际命令处理逻辑."""
     if command.name == "query":
         question = " ".join(command.args)
@@ -115,11 +200,18 @@ def _handle_command(command: BotCommand, token: str) -> str:
 
     if command.name in {"approve", "reject", "modify"}:
         # /approve 命令兼容 /reject、/modify 快捷语法
-        report_id = command.kwargs.get("report_id") or (command.args[0] if command.args else "")
+        report_id, error = _resolve_report_id_from_command(command, str(user.id))
+        if error:
+            return error
+        assert report_id is not None
+
         action = command.name if command.name != "approve" else command.kwargs.get("action", "approve")
         comments = command.kwargs.get("comment") or command.kwargs.get("comments")
-        if not report_id:
-            return "请输入 report_id，例如：/approve report_id=xxx action=approve"
+
+        allowed, abac_error = _check_abac_approval_permission(user, report_id, db)
+        if not allowed:
+            return f"操作失败：{abac_error}"
+
         result = _call_api(
             "POST",
             f"/api/v1/approvals/{report_id}/action",
@@ -132,10 +224,18 @@ def _handle_command(command: BotCommand, token: str) -> str:
         result = _call_api("GET", "/api/v1/reports?status=reviewing&page_size=10", token)
         items = result.get("items", [])
         if not items:
+            _pending_reports.pop(str(user.id), None)
             return "当前没有待审核的报告。"
-        lines = ["待审核报告："]
-        for item in items:
-            lines.append(f"- ID：{item.get('id')} | 标题：{item.get('title')} | 类型：{item.get('report_type')}")
+
+        report_ids = [str(item.get("id")) for item in items if item.get("id")]
+        _pending_reports[str(user.id)] = report_ids
+
+        lines = ["待审核报告（可用 /approve 序号 快速审批，如 /approve 1）："]
+        for idx, item in enumerate(items, 1):
+            lines.append(
+                f"{idx}. {item.get('title')} | 类型：{item.get('report_type')} | "
+                f"ID：{str(item.get('id'))[:8]}"
+            )
         return "\n".join(lines)
 
     return f"未知命令：/{command.name}\n支持：/query、/report、/pending、/approve、/reject、/modify"
