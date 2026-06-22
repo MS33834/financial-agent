@@ -2,18 +2,24 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.roles import Role
 from app.database import get_db
-from app.dependencies import get_pagination, require_role
+from app.dependencies import get_current_user_or_api_key, get_pagination, require_role
 from app.models.user import User
-from app.schemas.api_key import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyListResponse
+from app.schemas.api_key import (
+    ApiKeyCreate,
+    ApiKeyCreateResponse,
+    ApiKeyListResponse,
+    ApiKeyResponse,
+)
 from app.schemas.common import DataResponse, PaginationParams
 from app.services.api_key_service import (
     create_api_key,
     delete_api_key,
+    get_api_key_by_id,
     list_api_keys,
     revoke_api_key,
 )
@@ -93,4 +99,31 @@ def delete_key(
         "code": 0,
         "message": "ok",
         "data": {"id": key_id, "deleted": True},
+    }
+
+
+@router.get("/me", response_model=DataResponse[ApiKeyResponse | None])
+def get_current_api_key(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user_or_api_key()),
+) -> dict[str, Any]:
+    """获取当前请求使用的 API Key 信息（仅 API Key 访问时返回）."""
+    key_id = getattr(request.state, "api_key_id", None)
+    if not key_id:
+        return {
+            "code": 0,
+            "message": "ok",
+            "data": None,
+        }
+    api_key = get_api_key_by_id(db=db, key_id=key_id, tenant_id=user.tenant_id)
+    if api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API Key not found",
+        )
+    return {
+        "code": 0,
+        "message": "ok",
+        "data": api_key.to_dict(),
     }

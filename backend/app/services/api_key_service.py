@@ -141,3 +141,11 @@ def get_api_key_owner(db: Session, api_key_value: str) -> User | None:
     if user is None or user.is_active != "Y":
         return None
     return user
+
+
+def get_api_key_by_id(db: Session, key_id: str, tenant_id: str | None = None) -> ApiKey | None:
+    """按 ID 查询 API Key，可选校验租户."""
+    query = db.query(ApiKey).filter(ApiKey.id == key_id)
+    if tenant_id is not None:
+        query = query.filter(ApiKey.tenant_id == tenant_id)
+    return query.first()

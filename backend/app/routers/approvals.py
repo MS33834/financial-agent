@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.roles import Role
 from app.database import get_db
-from app.dependencies import require_role
+from app.dependencies import require_role_or_api_key_scope
 from app.models.approval import Approval
 from app.models.report import Report
 from app.models.user import User
@@ -35,9 +35,11 @@ def _to_approval_response(approval: Approval) -> dict[str, Any]:
 def list_approvals(
     report_id: str | None = Query(default=None, description="按报告 ID 筛选"),
     db: Session = Depends(get_db),
-    user: User = Depends(require_role(Role.ADMIN, Role.AUDITOR)),
+    user: User = Depends(
+        require_role_or_api_key_scope(Role.ADMIN, Role.AUDITOR, scope="approvals:read")
+    ),
 ) -> dict[str, Any]:
-    """查询人工审核记录列表（仅管理员/审计员）."""
+    """查询人工审核记录列表（仅管理员/审计员，或带 approvals:read scope 的 API Key）."""
     query = (
         db.query(Approval)
         .join(Report, Approval.report_id == Report.id)
@@ -59,9 +61,11 @@ def approval_action(
     report_id: str,
     action_data: ApprovalAction,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role(Role.ADMIN, Role.AUDITOR)),
+    user: User = Depends(
+        require_role_or_api_key_scope(Role.ADMIN, Role.AUDITOR, scope="approvals:write")
+    ),
 ) -> dict[str, Any]:
-    """对报告执行审核操作."""
+    """对报告执行审核操作（仅管理员/审计员，或带 approvals:write scope 的 API Key）."""
     report = get_report(db=db, report_id=report_id, tenant_id=user.tenant_id)
     if not report:
         raise HTTPException(

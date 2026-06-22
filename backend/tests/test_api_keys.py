@@ -153,3 +153,114 @@ def test_viewer_cannot_manage_api_keys(
         headers=viewer_auth_headers,
     )
     assert response.status_code == 403
+
+
+def test_api_key_scope_controls_documents(
+    client: TestClient, test_user: User
+) -> None:
+    """测试 API Key scope 控制文档接口访问."""
+    headers = {"Authorization": f"Bearer {create_access_token({'sub': test_user.id})}"}
+
+    # 无 documents 权限
+    resp = client.post(
+        "/api/v1/api-keys",
+        json={"name": "查询 Key", "scopes": ["reports:read"]},
+        headers=headers,
+    )
+    wrong_key = resp.json()["data"]["key"]
+
+    response = client.get("/api/v1/documents", headers={"X-API-Key": wrong_key})
+    assert response.status_code == 403
+
+    # 有 documents:read 权限
+    resp = client.post(
+        "/api/v1/api-keys",
+        json={"name": "文档 Key", "scopes": ["documents:read"]},
+        headers=headers,
+    )
+    right_key = resp.json()["data"]["key"]
+
+    response = client.get("/api/v1/documents", headers={"X-API-Key": right_key})
+    assert response.status_code == 200
+    assert response.json()["code"] == 0
+
+
+def test_api_key_scope_controls_approvals(
+    client: TestClient,
+    db_session: Session,
+    test_user: User,
+    test_tenant: Tenant,
+) -> None:
+    """测试 API Key scope 控制审批接口访问."""
+    from app.models.report import Report
+
+    headers = {"Authorization": f"Bearer {create_access_token({'sub': test_user.id})}"}
+
+    # 创建待审核报告
+    report = Report(
+        tenant_id=test_tenant.id,
+        created_by=test_user.id,
+        title="API Key 审批测试",
+        report_type="profit",
+        status="reviewing",
+    )
+    db_session.add(report)
+    db_session.commit()
+
+    # 无 approvals 权限
+    resp = client.post(
+        "/api/v1/api-keys",
+        json={"name": "文档 Key", "scopes": ["documents:read"]},
+        headers=headers,
+    )
+    wrong_key = resp.json()["data"]["key"]
+
+    response = client.post(
+        f"/api/v1/approvals/{report.id}/action",
+        json={"action": "approve", "comments": "OK"},
+        headers={"X-API-Key": wrong_key},
+    )
+    assert response.status_code == 403
+
+    # 有 approvals:write 权限
+    resp = client.post(
+        "/api/v1/api-keys",
+        json={"name": "审批 Key", "scopes": ["approvals:write"]},
+        headers=headers,
+    )
+    right_key = resp.json()["data"]["key"]
+
+    response = client.post(
+        f"/api/v1/approvals/{report.id}/action",
+        json={"action": "approve", "comments": "OK"},
+        headers={"X-API-Key": right_key},
+    )
+    assert response.status_code == 200
+    assert response.json()["code"] == 0
+
+
+def test_api_key_me_endpoint(
+    client: TestClient, test_user: User
+) -> None:
+    """测试 /api/v1/api-keys/me 返回当前 Key 信息."""
+    headers = {"Authorization": f"Bearer {create_access_token({'sub': test_user.id})}"}
+    resp = client.post(
+        "/api/v1/api-keys",
+        json={"name": "自检 Key", "scopes": ["reports:read"]},
+        headers=headers,
+    )
+    data = resp.json()["data"]
+    key = data["key"]
+    key_id = data["id"]
+
+    response = client.get("/api/v1/api-keys/me", headers={"X-API-Key": key})
+    assert response.status_code == 200
+    me = response.json()["data"]
+    assert me["id"] == key_id
+    assert me["name"] == "自检 Key"
+    assert me["scopes"] == ["reports:read"]
+
+    # JWT 访问返回 None
+    response = client.get("/api/v1/api-keys/me", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["data"] is None
