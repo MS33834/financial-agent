@@ -13,7 +13,7 @@ from app.models.report import Report
 from app.models.user import User
 from app.reporting.generator import ReportGenerationError, ReportGenerator
 from app.services.audit_service import log_action
-from app.tasks.utils import is_retryable_error
+from app.tasks.utils import is_retryable_error, reflect_task_failure
 
 # 平台到机器人类的映射
 _PLATFORM_BOTS: dict[str, type[DingTalkBot | FeishuBot | WeComBot]] = {
@@ -157,6 +157,15 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
                 reason=str(exc),
                 user=creator,
             )
+            reflect_task_failure(
+                db,
+                exc,
+                task_name=self.name,
+                task_id=self.request.id,
+                tenant_id=report.tenant_id,
+                resource_type="report",
+                resource_id=report_id,
+            )
         # 业务错误无需重试
         return {
             "report_id": report_id,
@@ -181,6 +190,15 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
                 result="failed",
                 reason=str(exc),
                 user=creator,
+            )
+            reflect_task_failure(
+                db,
+                exc,
+                task_name=self.name,
+                task_id=self.request.id,
+                tenant_id=report.tenant_id,
+                resource_type="report",
+                resource_id=report_id,
             )
         if is_retryable_error(exc):
             raise self.retry(exc=exc) from exc

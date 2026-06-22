@@ -5,6 +5,7 @@ from app.models.api_key import ApiKey
 from app.models.approval import Approval
 from app.models.audit_log import AuditLog
 from app.models.document import Document
+from app.models.error_reflection import ErrorReflection
 from app.models.financial_report import FinancialReport
 from app.models.im_user_mapping import IMUserMapping
 from app.models.report import Report
@@ -18,6 +19,7 @@ __all__ = [
     "Report",
     "Approval",
     "AuditLog",
+    "ErrorReflection",
     "FinancialReport",
     "AccessPolicy",
     "IMUserMapping",

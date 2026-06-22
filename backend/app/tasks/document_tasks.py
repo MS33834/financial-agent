@@ -16,7 +16,7 @@ from app.parser.utils import extract_period, extract_year
 from app.services.audit_service import log_action
 from app.services.financial_import_service import import_financial_records
 from app.storage import get_storage_client
-from app.tasks.utils import is_retryable_error
+from app.tasks.utils import is_retryable_error, reflect_task_failure
 
 
 def _get_document(db: Session, document_id: str) -> Document | None:
@@ -144,6 +144,15 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
                 reason=str(exc),
                 user=user,
             )
+            reflect_task_failure(
+                db,
+                exc,
+                task_name=self.name,
+                task_id=self.request.id,
+                tenant_id=document.tenant_id,
+                resource_type="document",
+                resource_id=document_id,
+            )
         return {
             "document_id": document_id,
             "status": "failed",
@@ -167,6 +176,15 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
                 result="failed",
                 reason=str(exc),
                 user=user,
+            )
+            reflect_task_failure(
+                db,
+                exc,
+                task_name=self.name,
+                task_id=self.request.id,
+                tenant_id=document.tenant_id,
+                resource_type="document",
+                resource_id=document_id,
             )
         if is_retryable_error(exc):
             raise self.retry(exc=exc) from exc

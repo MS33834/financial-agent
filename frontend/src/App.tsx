@@ -7,6 +7,7 @@ import DocumentsPage from './pages/DocumentsPage.tsx'
 import AuditPage from './pages/AuditPage.tsx'
 import AgentChatPage from './pages/AgentChatPage.tsx'
 import ApprovalsPage from './pages/ApprovalsPage.tsx'
+import ReflectionsPage from './pages/ReflectionsPage.tsx'
 import './index.css'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -65,6 +66,14 @@ function App() {
           element={
             <PrivateRoute>
               <ApprovalsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/reflections"
+          element={
+            <PrivateRoute>
+              <ReflectionsPage />
             </PrivateRoute>
           }
         />

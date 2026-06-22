@@ -20,6 +20,7 @@ export default function NavBar({ showLogout = false }: NavBarProps) {
     { path: '/agent', label: '智能问答' },
     { path: '/audit', label: '审计日志' },
     ...(canApprove ? [{ path: '/approvals', label: '人工审批' }] : []),
+    ...(canApprove ? [{ path: '/reflections', label: '错误自省' }] : []),
   ]
 
   return (

@@ -28,6 +28,7 @@ from app.routers import (
     im,
     im_user_mappings,
     queries,
+    reflections,
     reports,
 )
 
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(im_user_mappings.router)
     app.include_router(api_keys.router)
     app.include_router(agent.router)
+    app.include_router(reflections.router)
 
     # Prometheus 指标端点（标准 /metrics，不进入 API 文档）
     @app.get("/metrics", include_in_schema=False)
