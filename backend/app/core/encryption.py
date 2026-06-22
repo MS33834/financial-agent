@@ -12,7 +12,7 @@ import json
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import JSON, TypeDecorator
+from sqlalchemy import JSON, Text, TypeDecorator
 
 from app.config import get_settings
 
@@ -140,3 +140,28 @@ class EncryptedJSON(TypeDecorator[dict[str, Any] | None]):
         if value is None:
             return None
         return FieldEncryption.decrypt(value)
+
+
+class EncryptedString(TypeDecorator[str | None]):
+    """SQLAlchemy 加密字符串类型.
+
+    写入数据库前加密，读取后自动解密。
+    """
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: Any | None, _dialect: Any) -> Any | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise EncryptionError("EncryptedString only accepts string values")
+        return FieldEncryption.encrypt(value)
+
+    def process_result_value(self, value: Any | None, _dialect: Any) -> Any | None:
+        if value is None:
+            return None
+        decrypted = FieldEncryption.decrypt(value)
+        if not isinstance(decrypted, str):
+            raise EncryptionError("EncryptedString decrypted value is not a string")
+        return decrypted

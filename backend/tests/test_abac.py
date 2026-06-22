@@ -1,11 +1,13 @@
 """ABAC 与字段加密测试."""
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from app.core.abac import ABACEngine
 from app.core.encryption import EncryptedJSON, EncryptionError, FieldEncryption
 from app.models.access_policy import AccessPolicy
+from app.models.report import Report
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.security import get_password_hash
@@ -177,3 +179,81 @@ def test_encrypted_json_type_decorator() -> None:
     assert isinstance(encrypted, str)
     decrypted = decorator.process_result_value(encrypted, None)
     assert decrypted == value
+
+
+def test_encrypted_string_type_decorator() -> None:
+    """EncryptedString TypeDecorator 可正确加解密字符串."""
+    from app.core.encryption import EncryptedString
+
+    decorator = EncryptedString()
+    value = "敏感摘要内容"
+    encrypted = decorator.process_bind_param(value, None)
+    assert isinstance(encrypted, str)
+    assert encrypted != value
+    decrypted = decorator.process_result_value(encrypted, None)
+    assert decrypted == value
+
+
+def test_encrypted_string_rejects_non_string() -> None:
+    """EncryptedString 拒绝非字符串值."""
+    from app.core.encryption import EncryptedString
+
+    decorator = EncryptedString()
+    with pytest.raises(EncryptionError):
+        decorator.process_bind_param({"key": "value"}, None)
+
+
+def test_report_summary_encrypted_at_rest(
+    db_session: Session,
+    test_user: User,
+) -> None:
+    """报告摘要落库应为加密形态，读取时自动解密."""
+    report = Report(
+        tenant_id=test_user.tenant_id,
+        created_by=test_user.id,
+        title="加密测试报告",
+        report_type="profit",
+        summary="高度敏感的利润摘要",
+    )
+    db_session.add(report)
+    db_session.commit()
+
+    # ORM 读取自动解密
+    loaded = db_session.get(Report, report.id)
+    assert loaded is not None
+    assert loaded.summary == "高度敏感的利润摘要"
+
+    # 直接查询数据库应得到密文
+    raw = db_session.execute(
+        sa.text("SELECT summary FROM reports WHERE id = :id"),
+        {"id": report.id},
+    ).scalar()
+    assert raw is not None
+    assert raw != "高度敏感的利润摘要"
+
+
+def test_user_attributes_encrypted_at_rest(
+    db_session: Session,
+    test_tenant: Tenant,
+) -> None:
+    """用户 ABAC 属性落库应为加密形态，读取时自动解密."""
+    user = User(
+        tenant_id=test_tenant.id,
+        username="encrypted_attrs_user",
+        email="enc@example.com",
+        hashed_password="hash",
+        attributes={"department": "finance", "level": 3},
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    loaded = db_session.get(User, user.id)
+    assert loaded is not None
+    assert loaded.attributes == {"department": "finance", "level": 3}
+
+    raw = db_session.execute(
+        sa.text("SELECT attributes FROM users WHERE id = :id"),
+        {"id": user.id},
+    ).scalar()
+    assert raw is not None
+    assert raw != '{"department": "finance", "level": 3}'

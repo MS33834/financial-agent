@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.encryption import EncryptedJSON
 from app.models.base import UUIDBase
 
 if TYPE_CHECKING:
@@ -35,10 +36,10 @@ class User(UUIDBase):
         String(1), nullable=False, default="Y", comment="是否启用"
     )
     attributes: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON,
+        EncryptedJSON,
         nullable=True,
         default=dict,
-        comment="ABAC 用户属性，如 {'department': 'finance', 'level': 3}",
+        comment="ABAC 用户属性，如 {'department': 'finance', 'level': 3}（加密存储）",
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="users")
