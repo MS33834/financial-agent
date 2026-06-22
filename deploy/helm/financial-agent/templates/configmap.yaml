@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "financial-agent.fullname" . }}
+  labels:
+    {{- include "financial-agent.labels" (dict "root" .) | nindent 4 }}
+data:
+  {{- toYaml .Values.config | nindent 2 }}

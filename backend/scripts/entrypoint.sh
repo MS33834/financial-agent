@@ -23,5 +23,7 @@ fi
 # 初始化默认租户和管理员
 python scripts/bootstrap.py
 
-# 执行主命令（exec 替换进程，保证信号正确传递）
+# 执行主命令（exec 替换进程，保证信号正确传递）。
+# Uvicorn 接收到 SIGTERM 后会停止接收新连接，等待在途请求完成（最多 30s），
+# 并触发 lifespan shutdown 钩子释放数据库连接池。
 exec "$@"

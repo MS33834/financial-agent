@@ -1,5 +1,7 @@
 """人工审核服务."""
 
+from contextlib import suppress
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -78,6 +80,12 @@ def record_approval(
 
     db.commit()
     db.refresh(approval)
+
+    with suppress(Exception):
+        from app.metrics import FA_BUSINESS_OPERATIONS_TOTAL
+
+        FA_BUSINESS_OPERATIONS_TOTAL.labels(operation=f"approval_{action}").inc()
+
     return approval
 
 

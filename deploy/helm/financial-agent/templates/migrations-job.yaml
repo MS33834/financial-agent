@@ -1,0 +1,48 @@
+{{- if and .Values.backend.enabled .Values.backend.runMigrations }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "financial-agent.fullname" . }}-migrations
+  labels:
+    {{- include "financial-agent.labels" (dict "root" . "component" "migrations") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "financial-agent.labels" (dict "root" . "component" "migrations") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "financial-agent.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migrations
+          image: {{ include "financial-agent.image" (list . "backend") }}
+          imagePullPolicy: {{ include "financial-agent.imagePullPolicy" (list . "backend") }}
+          command:
+            - alembic
+            - upgrade
+            - head
+          env:
+            {{- range $key, $value := .Values.backend.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "financial-agent.fullname" . }}
+            - secretRef:
+                name: {{ include "financial-agent.secretName" . }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+{{- end }}

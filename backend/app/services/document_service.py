@@ -1,5 +1,7 @@
 """文档解析任务服务."""
 
+from contextlib import suppress
+
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
@@ -35,6 +37,11 @@ def create_document_task(
 
     # 触发异步解析；测试环境 eager 模式下同步执行
     parse_document_task.delay(doc.id)
+
+    with suppress(Exception):
+        from app.metrics import FA_BUSINESS_OPERATIONS_TOTAL
+
+        FA_BUSINESS_OPERATIONS_TOTAL.labels(operation="document_created").inc()
 
     return doc
 

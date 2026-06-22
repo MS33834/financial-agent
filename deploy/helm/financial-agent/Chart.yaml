@@ -1,0 +1,12 @@
+apiVersion: v2
+name: financial-agent
+description: 企业级财务智能体 - Helm Chart
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - financial-agent
+  - ai
+  - llm
+home: https://gitcode.com/badhope/financial-agent
+sources:
+  - https://gitcode.com/badhope/financial-agent

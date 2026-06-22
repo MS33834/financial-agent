@@ -132,3 +132,14 @@ def get_settings() -> Settings:
     实际字段值从环境变量/ .env 文件读取，类型检查器无法推断，故忽略构造参数检查。
     """
     return Settings()  # type: ignore[call-arg]
+
+
+def reload_settings() -> Settings:
+    """重新加载配置.
+
+    清除 ``get_settings`` 的缓存并返回新的 ``Settings`` 实例。
+    注意：数据库连接池、Celery broker 等在模块导入时初始化的全局对象不会自动刷新，
+    变更此类配置后仍需重启进程。
+    """
+    get_settings.cache_clear()
+    return get_settings()

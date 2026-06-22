@@ -1,0 +1,41 @@
+{{- if and .Values.backend.enabled .Values.backend.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "financial-agent.fullname" . }}-backend
+  labels:
+    {{- include "financial-agent.labels" (dict "root" . "component" "backend") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.backend.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "financial-agent.selectorLabels" (dict "root" . "component" "backend") | nindent 6 }}
+{{- end }}
+---
+{{- if and .Values.worker.enabled .Values.worker.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "financial-agent.fullname" . }}-worker
+  labels:
+    {{- include "financial-agent.labels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.worker.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "financial-agent.selectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+{{- end }}
+---
+{{- if and .Values.frontend.enabled .Values.frontend.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "financial-agent.fullname" . }}-frontend
+  labels:
+    {{- include "financial-agent.labels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.frontend.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "financial-agent.selectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+{{- end }}

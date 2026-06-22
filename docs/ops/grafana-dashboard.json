@@ -78,6 +78,66 @@
           }
         ],
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18}
+      },
+      {
+        "id": 7,
+        "title": "任务成功率",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(fa_task_success_total[5m])) / sum(rate(fa_task_runs_total[5m]))",
+            "legendFormat": "success rate"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 26}
+      },
+      {
+        "id": 8,
+        "title": "任务失败率",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(fa_task_failures_total[5m])) / sum(rate(fa_task_runs_total[5m]))",
+            "legendFormat": "failure rate"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 26}
+      },
+      {
+        "id": 9,
+        "title": "队列深度",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "fa_queue_length",
+            "legendFormat": "{{queue_name}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 26}
+      },
+      {
+        "id": 10,
+        "title": "按分类错误数",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum by (error_category) (rate(fa_errors_classified_total[5m]))",
+            "legendFormat": "{{error_category}}"
+          }
+        ],
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 34}
+      },
+      {
+        "id": 11,
+        "title": "按任务 P95 耗时",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(fa_task_duration_seconds_bucket[5m])) by (task_name, le))",
+            "legendFormat": "{{task_name}}"
+          }
+        ],
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 44}
       }
     ]
   }

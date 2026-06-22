@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
@@ -16,6 +17,7 @@ from app.metrics import PrometheusMiddleware, metrics_response
 from app.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.routers import (
     access_policies,
+    admin,
     agent,
     api_keys,
     approvals,
@@ -47,10 +49,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     # 开发/测试环境自动建表；生产环境应使用 Alembic 迁移
     if settings.app_env in ("development", "testing"):
-        Base.metadata.create_all(bind=engine)
+        await run_in_threadpool(Base.metadata.create_all, bind=engine)
         logger.info("database_tables_created")
     yield
     logger.info("shutting_down")
+    # 优雅关闭：释放数据库连接池，避免正在处理的请求被强制中断
+    await run_in_threadpool(engine.dispose)
+    logger.info("engine_disposed")
 
 
 def create_app() -> FastAPI:
@@ -119,6 +124,7 @@ def create_app() -> FastAPI:
 
     # 注册路由
     app.include_router(health.router)
+    app.include_router(admin.router)
     app.include_router(auth.router)
     app.include_router(dashboard.router)
     app.include_router(documents.router)

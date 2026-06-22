@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import traceback
+from contextlib import suppress
 
 from sqlalchemy.orm import Session
 
@@ -45,6 +46,10 @@ class ReflectionService:
             创建的错误自省日志记录。
         """
         category = classify_exception(exc)
+        with suppress(Exception):
+            from app.metrics import FA_ERRORS_CLASSIFIED_TOTAL
+
+            FA_ERRORS_CLASSIFIED_TOTAL.labels(error_category=category).inc()
         exc_type = type(exc).__name__
         exc_message = str(exc) or "无异常消息"
         stack_trace = traceback.format_exc() if category in {"unknown", "retryable"} else None

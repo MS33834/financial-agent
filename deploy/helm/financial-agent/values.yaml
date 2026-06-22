@@ -1,0 +1,222 @@
+# 企业级财务智能体 - 默认 Helm Values
+# 生产环境请覆盖以下敏感/高可用相关配置
+
+# ==========================
+# 全局配置
+# ==========================
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  fsGroup: 999
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 999
+
+# ==========================
+# 后端 API 配置
+# ==========================
+backend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: financial-agent-backend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  healthCheck:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 5
+
+  # 环境变量（非敏感）
+  env:
+    APP_ENV: production
+    LOG_LEVEL: INFO
+    UVICORN_WORKERS: "4"
+
+  # 是否运行 Alembic 迁移（建议仅在第一个副本或 init job 中开启）
+  runMigrations: true
+
+# ==========================
+# Celery Worker 配置
+# ==========================
+worker:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: financial-agent-backend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  command:
+    - python
+    - scripts/worker.py
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+# ==========================
+# 前端配置
+# ==========================
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: financial-agent-frontend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+
+# ==========================
+# Ingress 配置
+# ==========================
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: financial-agent.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /metrics
+          pathType: Prefix
+          service: backend
+  tls:
+    - secretName: financial-agent-tls
+      hosts:
+        - financial-agent.example.com
+
+# ==========================
+# 外部依赖配置（必填）
+# ==========================
+externalSecrets:
+  # 是否使用已存在的 Secret；false 时 Chart 会创建空 Secret 占位
+  existingSecretName: ""
+
+# 敏感配置 key 列表（生产环境请通过 externalSecrets 注入）
+secrets:
+  DATABASE_URL: ""
+  REDIS_URL: ""
+  SECRET_KEY: ""
+  MINIO_ENDPOINT: ""
+  MINIO_ACCESS_KEY: ""
+  MINIO_SECRET_KEY: ""
+  MINIO_PUBLIC_URL: ""
+  DIFY_TOOL_API_KEY: ""
+
+# 非敏感应用配置
+config:
+  MINIO_BUCKET: financial-agent
+  OLLAMA_HOST: ""
+  OLLAMA_MODEL: ""
+  TEXT2SQL_BACKEND: rule
+  AGENT_INTENT_MODE: llm
+  AGENT_LLM_MODEL: ""
+  RAG_CHUNK_SIZE: "512"
+  RAG_TOP_K: "3"
+  MINERU_API_URL: ""
+  MINERU_TIMEOUT: "120"
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  RATE_LIMIT_WINDOW_SECONDS: "60"
+
+# ==========================
+# 可观测性
+# ==========================
+serviceMonitor:
+  enabled: false
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}

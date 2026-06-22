@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build and Push ${{ matrix.component }} Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+        include:
+          - component: backend
+            context: ./backend
+            image: ${{ github.repository_owner }}/financial-agent-backend
+          - component: frontend
+            context: ./frontend
+            image: ${{ github.repository_owner }}/financial-agent-frontend
+    env:
+      IMAGE_NAME: ${{ matrix.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ github.ref_name }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push ${{ matrix.component }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  scan-images:
+    name: Scan ${{ matrix.component }} Image
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+        include:
+          - component: backend
+            image: ${{ github.repository_owner }}/financial-agent-backend
+          - component: frontend
+            image: ${{ github.repository_owner }}/financial-agent-frontend
+    env:
+      IMAGE_NAME: ${{ matrix.image }}
+      TRIVY_EXIT_CODE: ${{ vars.TRIVY_EXIT_CODE || '1' }}
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          format: table
+          exit-code: ${{ env.TRIVY_EXIT_CODE }}
+          severity: HIGH,CRITICAL
+
+  package-helm:
+    name: Package Helm Chart
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Update chart version
+        run: |
+          CHART_VERSION=${GITHUB_REF_NAME#v}
+          sed -i "s/^version: .*/version: ${CHART_VERSION}/" deploy/helm/financial-agent/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"${GITHUB_REF_NAME}\"/" deploy/helm/financial-agent/Chart.yaml
+
+      - name: Helm lint
+        run: helm lint deploy/helm/financial-agent
+
+      - name: Helm template
+        run: helm template financial-agent deploy/helm/financial-agent
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p dist
+          helm package deploy/helm/financial-agent -d dist
+
+      - name: Upload Helm chart artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart-${{ github.ref_name }}
+          path: dist/*.tgz
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tgz
+          generate_release_notes: true

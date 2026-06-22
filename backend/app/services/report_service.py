@@ -1,5 +1,6 @@
 """报告生成任务服务."""
 
+from contextlib import suppress
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -37,6 +38,11 @@ def create_report_task(
     )
 
     generate_report_task.delay(report.id)
+
+    with suppress(Exception):
+        from app.metrics import FA_BUSINESS_OPERATIONS_TOTAL
+
+        FA_BUSINESS_OPERATIONS_TOTAL.labels(operation="report_created").inc()
 
     # 异步任务可能已更新数据库，刷新后再返回
     db.refresh(report)

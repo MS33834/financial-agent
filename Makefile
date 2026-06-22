@@ -10,7 +10,14 @@ PROJECT_NAME := financial-agent
 COMPOSE_FILE := docker-compose.yml
 COMPOSE_PROD_FILE := docker-compose.prod.yml
 
-.PHONY: help init validate validate-prod up up-build up-prod down down-volumes logs logs-api logs-backend logs-frontend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-migrate backend-seed-demo
+# 镜像仓库与标签（本地可覆盖，例如 make build-backend REGISTRY=docker.io/foo IMAGE_TAG=dev）
+REGISTRY ?= ghcr.io/badhope
+BACKEND_IMAGE ?= $(REGISTRY)/financial-agent-backend
+FRONTEND_IMAGE ?= $(REGISTRY)/financial-agent-frontend
+IMAGE_TAG ?= latest
+HELM_CHART_PATH := deploy/helm/financial-agent
+
+.PHONY: help init validate validate-prod up up-build up-prod down down-volumes logs logs-api logs-backend logs-frontend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-migrate backend-seed-demo build-backend build-frontend build-all scan-backend scan-frontend helm-lint helm-template deploy-local deploy-prod
 
 help: ## 显示可用命令
 	@echo "Available commands:"
@@ -123,4 +130,54 @@ backend-train-vanna: ## 训练 Vanna Text2SQL 模型
 
 backend-benchmark: ## 后端关键接口性能基线测试（默认 http://localhost:8000）
 	cd backend && python scripts/benchmark.py $(url)
+
+# ==================================================================
+# 镜像构建
+# ==================================================================
+
+build-backend: ## 构建后端 Docker 镜像
+	@echo "==> Building backend image $(BACKEND_IMAGE):$(IMAGE_TAG)..."
+	cd backend && docker build -t $(BACKEND_IMAGE):$(IMAGE_TAG) .
+
+build-frontend: ## 构建前端 Docker 镜像
+	@echo "==> Building frontend image $(FRONTEND_IMAGE):$(IMAGE_TAG)..."
+	cd frontend && docker build -t $(FRONTEND_IMAGE):$(IMAGE_TAG) .
+
+build-all: build-backend build-frontend ## 构建前后端全部镜像
+
+# ==================================================================
+# 安全扫描
+# ==================================================================
+
+scan-backend: ## 扫描后端镜像漏洞（HIGH/CRITICAL，默认阻断；TRIVY_EXIT_CODE=0 只报告）
+	@echo "==> Scanning backend image $(BACKEND_IMAGE):$(IMAGE_TAG)..."
+	trivy image --exit-code $(or $(TRIVY_EXIT_CODE),1) --severity HIGH,CRITICAL $(BACKEND_IMAGE):$(IMAGE_TAG)
+
+scan-frontend: ## 扫描前端镜像漏洞（HIGH/CRITICAL，默认阻断；TRIVY_EXIT_CODE=0 只报告）
+	@echo "==> Scanning frontend image $(FRONTEND_IMAGE):$(IMAGE_TAG)..."
+	trivy image --exit-code $(or $(TRIVY_EXIT_CODE),1) --severity HIGH,CRITICAL $(FRONTEND_IMAGE):$(IMAGE_TAG)
+
+# ==================================================================
+# Helm 验证
+# ==================================================================
+
+helm-lint: ## Helm Chart lint
+	@echo "==> Running helm lint..."
+	helm lint $(HELM_CHART_PATH)
+
+helm-template: ## Helm Chart 模板渲染验证
+	@echo "==> Running helm template..."
+	helm template $(PROJECT_NAME) $(HELM_CHART_PATH)
+
+# ==================================================================
+# 部署
+# ==================================================================
+
+deploy-local: ## 本地 Docker Compose 部署
+	@echo "==> Deploying local stack..."
+	docker compose -f $(COMPOSE_FILE) --env-file .env up -d
+
+deploy-prod: ## 生产 Docker Compose 部署
+	@echo "==> Deploying production stack..."
+	docker compose -f $(COMPOSE_FILE) -f $(COMPOSE_PROD_FILE) --env-file .env up -d
 

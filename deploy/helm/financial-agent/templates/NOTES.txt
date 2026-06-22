@@ -1,0 +1,10 @@
+The financial-agent Helm chart has been installed.
+
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+Chart:      {{ .Chart.Name }}-{{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+
+NOTE: This chart currently ships with minimal placeholder templates.
+The full backend/worker/frontend Kubernetes manifests should be added
+under deploy/helm/financial-agent/templates/ before production deployment.
