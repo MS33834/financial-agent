@@ -15,7 +15,7 @@ import time
 from typing import Any
 
 from app.config import get_settings
-from app.im.base import BaseIMBot, IMMessage, send_webhook_with_retry
+from app.im.base import BaseIMBot, IMBotRegistry, IMMessage, send_webhook_with_retry
 
 
 class DingTalkSignatureError(Exception):
@@ -24,6 +24,7 @@ class DingTalkSignatureError(Exception):
     pass
 
 
+@IMBotRegistry.register("dingtalk")
 class DingTalkBot(BaseIMBot):
     """钉钉群机器人适配器."""
 

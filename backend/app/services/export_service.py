@@ -1,10 +1,10 @@
 """报告导出服务."""
 
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any
 
 from fpdf import FPDF
 from openpyxl import Workbook
@@ -214,26 +214,68 @@ def _render_excel(report: Report) -> bytes:
     return buffer.getvalue()
 
 
-_RENDERERS: dict[str, Any] = {
-    "markdown": _render_markdown,
-    "json": _render_json,
-    "pdf": _render_pdf,
-    "xlsx": _render_excel,
-}
+class ExportRendererRegistry:
+    """报告导出渲染器注册表.
 
-_CONTENT_TYPES: dict[str, str] = {
-    "markdown": "text/markdown; charset=utf-8",
-    "json": "application/json; charset=utf-8",
-    "pdf": "application/pdf",
-    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-}
+    新增导出格式只需调用 `register(fmt, renderer, content_type, ext)`，
+    无需修改 export_report 主逻辑，便于后续扩展 Word/CSV/图片等格式。
+    """
 
-_FILE_EXTENSIONS: dict[str, str] = {
-    "markdown": "md",
-    "json": "json",
-    "pdf": "pdf",
-    "xlsx": "xlsx",
-}
+    Entry = tuple[Callable[[Report], bytes], str, str]
+
+    _renderers: dict[str, Entry] = {}
+
+    @classmethod
+    def register(
+        cls,
+        fmt: str,
+        content_type: str,
+        ext: str,
+    ) -> Callable[[Callable[[Report], bytes]], Callable[[Report], bytes]]:
+        """注册导出格式渲染器（用作装饰器）."""
+
+        def decorator(func: Callable[[Report], bytes]) -> Callable[[Report], bytes]:
+            cls._renderers[fmt] = (func, content_type, ext)
+            return func
+
+        return decorator
+
+    @classmethod
+    def get_renderer(cls, fmt: str) -> tuple[Callable[[Report], bytes], str, str]:
+        """获取格式对应的渲染函数、Content-Type 与扩展名."""
+        entry = cls._renderers.get(fmt)
+        if entry is None:
+            raise ExportFormatError(f"不支持的导出格式: {fmt}")
+        return entry
+
+    @classmethod
+    def list_formats(cls) -> list[str]:
+        """返回所有已注册导出格式."""
+        return list(cls._renderers.keys())
+
+
+@ExportRendererRegistry.register("markdown", "text/markdown; charset=utf-8", "md")
+def _render_markdown_registered(report: Report) -> bytes:
+    return _render_markdown(report)
+
+
+@ExportRendererRegistry.register("json", "application/json; charset=utf-8", "json")
+def _render_json_registered(report: Report) -> bytes:
+    return _render_json(report)
+
+
+@ExportRendererRegistry.register("pdf", "application/pdf", "pdf")
+def _render_pdf_registered(report: Report) -> bytes:
+    return _render_pdf(report)
+
+
+@ExportRendererRegistry.register(
+    "xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "xlsx",
+)
+def _render_excel_registered(report: Report) -> bytes:
+    return _render_excel(report)
 
 
 def export_report(
@@ -259,18 +301,15 @@ def export_report(
         ExportFormatError: 格式不支持。
         StorageClientError: 上传失败。
     """
-    renderer = _RENDERERS.get(fmt)
-    if renderer is None:
-        raise ExportFormatError(f"不支持的导出格式: {fmt}")
+    renderer, content_type, ext = ExportRendererRegistry.get_renderer(fmt)
 
     data = renderer(report)
-    ext = _FILE_EXTENSIONS[fmt]
     key = f"reports/{report.tenant_id}/{report.id}/report.{ext}"
 
     url = storage.upload_bytes(
         key=key,
         data=data,
-        content_type=_CONTENT_TYPES[fmt],
+        content_type=content_type,
         metadata={"report_id": report.id, "report_type": report.report_type},
     )
 

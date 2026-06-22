@@ -19,7 +19,7 @@ from typing import Any
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.config import get_settings
-from app.im.base import BaseIMBot, IMMessage, send_webhook_with_retry
+from app.im.base import BaseIMBot, IMBotRegistry, IMMessage, send_webhook_with_retry
 
 
 def _sha1_hex(data: bytes) -> str:
@@ -27,6 +27,7 @@ def _sha1_hex(data: bytes) -> str:
     return hashlib.sha1(data).hexdigest()
 
 
+@IMBotRegistry.register("wecom")
 class WeComBot(BaseIMBot):
     """企业微信机器人适配器."""
 

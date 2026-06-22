@@ -9,11 +9,13 @@ export default function NavBar({ showLogout = false }: NavBarProps) {
   const { role, logout } = useAuth()
   const location = useLocation()
 
-  const isActive = (path: string) => location.pathname === path
+  const isActive = (path: string) =>
+    path === '/dashboard' ? location.pathname === '/dashboard' : location.pathname.startsWith(path)
   const canApprove = role === 'admin' || role === 'auditor'
 
   const links = [
-    { path: '/', label: '财务报告' },
+    { path: '/dashboard', label: '工作台' },
+    { path: '/reports', label: '财务报告' },
     { path: '/documents', label: '文档解析' },
     { path: '/agent', label: '智能问答' },
     { path: '/audit', label: '审计日志' },

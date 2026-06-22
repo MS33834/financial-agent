@@ -66,7 +66,7 @@ def approval_action(
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found",
+            detail="报告不存在",
         )
 
     try:

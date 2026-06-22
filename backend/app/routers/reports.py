@@ -87,7 +87,7 @@ def get_report_api(
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found",
+            detail="报告不存在",
         )
     return {"code": 0, "message": "ok", "data": _to_report_response(report)}
 
@@ -111,7 +111,7 @@ def export_report_api(
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found",
+            detail="报告不存在",
         )
 
     if report.status not in ("reviewing", "approved"):
@@ -133,11 +133,11 @@ def export_report_api(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
-    except StorageClientError as exc:
+    except StorageClientError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
-        ) from exc
+            detail="导出文件上传失败，请稍后重试",
+        ) from None
 
     db.commit()
     db.refresh(report)

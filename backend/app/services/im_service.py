@@ -42,9 +42,15 @@ def _call_api(method: str, path: str, token: str, json: dict[str, Any] | None = 
             raise IMServiceError(f"Unsupported method: {method}")
 
     if response.status_code >= 400:
-        raise IMServiceError(response.text)
-    payload: dict[str, Any] = response.json()
-    data: dict[str, Any] = payload.get("data", {})
+        detail = "服务内部错误"
+        try:
+            payload = response.json()
+            detail = payload.get("message") or payload.get("detail") or detail
+        except Exception:  # noqa: BLE001
+            pass
+        raise IMServiceError(f"[{response.status_code}] {detail}")
+    response_payload: dict[str, Any] = response.json()
+    data: dict[str, Any] = response_payload.get("data") or {}
     return data
 
 
@@ -52,17 +58,22 @@ def _format_api_error(exc: IMServiceError) -> str:
     """将 API 调用异常转换为可操作的提示文本.
 
     根据状态码与常见业务错误给出针对性建议，实现简单的错误自省。
+    避免将原始响应文本直接暴露给 IM 平台用户。
     """
     text = str(exc)
-    if "403" in text or "Permission denied" in text:
+    if "[403]" in text or "权限" in text:
         return "操作失败：当前用户权限不足，请联系管理员开通审批或查询权限。"
-    if "404" in text or "Report not found" in text:
+    if "[404]" in text or "不存在" in text:
         return "操作失败：未找到指定资源，请检查 report_id 是否正确。"
     if "仅 reviewing 状态的报告可执行审核" in text:
         return "操作失败：该报告不处于待审核状态，无需审批。可通过 /pending 查看待审报告。"
     if "无效的审核动作" in text:
         return "操作失败：审核动作仅支持 approve（通过）、reject（驳回）、modify（退回修改）。"
-    return f"操作失败：{text}"
+    if "[400]" in text:
+        return "操作失败：请求参数有误，请检查命令格式。"
+    if "[500]" in text:
+        return "操作失败：服务暂时不可用，请稍后重试。"
+    return "操作失败：服务处理异常，请稍后重试或联系管理员。"
 
 
 def handle_command(command: BotCommand, token: str) -> str:

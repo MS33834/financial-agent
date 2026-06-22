@@ -17,7 +17,7 @@ from typing import Any
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.config import get_settings
-from app.im.base import BaseIMBot, IMMessage, send_webhook_with_retry
+from app.im.base import BaseIMBot, IMBotRegistry, IMMessage, send_webhook_with_retry
 
 
 def _sha256_hex(data: bytes) -> str:
@@ -25,6 +25,7 @@ def _sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+@IMBotRegistry.register("feishu")
 class FeishuBot(BaseIMBot):
     """飞书/Lark 机器人适配器."""
 

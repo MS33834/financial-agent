@@ -5,7 +5,8 @@ from __future__ import annotations
 import time
 import urllib.request
 from abc import ABC, abstractmethod
-from typing import Any
+from collections.abc import Callable
+from typing import Any, ClassVar
 from urllib.error import URLError
 
 from pydantic import BaseModel
@@ -53,8 +54,11 @@ def send_webhook_with_retry(
 class BaseIMBot(ABC):
     """IM 机器人抽象基类.
 
-    子类需实现平台特定的签名验证、消息解析与响应构建。
+    子类需实现平台特定的签名验证、消息解析与响应构建，并通过
+    `@IMBotRegistry.register(platform_name)` 自动注册到平台注册表。
     """
+
+    platform_name: ClassVar[str] = ""
 
     @abstractmethod
     def verify_signature(
@@ -93,3 +97,37 @@ class BaseIMBot(ABC):
         未配置 Webhook 或推送失败时均返回 False，不影响主流程。
         """
         return False
+
+
+class IMBotRegistry:
+    """IM 机器人注册表.
+
+    新增 IM 平台只需继承 BaseIMBot 并用 `@IMBotRegistry.register("platform")`
+    装饰，路由层即可通过平台名称获取对应机器人，无需修改 if/else 分支。
+    """
+
+    _bots: dict[str, type[BaseIMBot]] = {}
+
+    @classmethod
+    def register(cls, platform: str) -> Callable[[type[BaseIMBot]], type[BaseIMBot]]:
+        """返回类装饰器，将机器人实现注册到指定平台名."""
+
+        def decorator(bot_cls: type[BaseIMBot]) -> type[BaseIMBot]:
+            bot_cls.platform_name = platform
+            cls._bots[platform] = bot_cls
+            return bot_cls
+
+        return decorator
+
+    @classmethod
+    def get_bot(cls, platform: str) -> BaseIMBot | None:
+        """根据平台名称获取机器人实例."""
+        bot_cls = cls._bots.get(platform)
+        if bot_cls is None:
+            return None
+        return bot_cls()
+
+    @classmethod
+    def list_platforms(cls) -> list[str]:
+        """返回所有已注册平台名称."""
+        return list(cls._bots.keys())

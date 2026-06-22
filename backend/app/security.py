@@ -50,7 +50,7 @@ def decode_token(token: str) -> dict[str, Any]:
     except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="认证凭据无效",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
 
@@ -65,12 +65,12 @@ def get_current_user(
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="认证凭据无效",
         )
     user = db.query(User).filter(User.id == user_id).first()
     if user is None or user.is_active != "Y":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
+            detail="用户不存在或已被禁用",
         )
     return user

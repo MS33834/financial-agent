@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext.tsx'
 import LoginPage from './pages/LoginPage.tsx'
+import DashboardPage from './pages/DashboardPage.tsx'
 import ReportsPage from './pages/ReportsPage.tsx'
 import DocumentsPage from './pages/DocumentsPage.tsx'
 import AuditPage from './pages/AuditPage.tsx'
@@ -18,8 +19,17 @@ function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route
-          path="/"
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <DashboardPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/reports"
           element={
             <PrivateRoute>
               <ReportsPage />

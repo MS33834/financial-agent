@@ -6,14 +6,18 @@ import time
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.logger import get_logger
 from app.models.user import User
 from app.services.audit_service import log_action
 from app.text2sql.base import Text2SQLBackend
 from app.text2sql.rule_backend import RuleBasedText2SQLBackend
 from app.text2sql.sql_sandbox import SQLSandbox, SQLSandboxError
+
+logger = get_logger(__name__)
 
 
 class QueryService:
@@ -75,7 +79,13 @@ class QueryService:
         try:
             self.sandbox.validate(sql)
         except SQLSandboxError as exc:
-            error = f"SQL sandbox rejected: {exc!s}"
+            logger.warning(
+                "nl2sql_sandbox_rejected",
+                tenant_id=tenant_id,
+                question=question,
+                sql=sql,
+                reason=str(exc),
+            )
             response = {
                 "question": question,
                 "sql": sql,
@@ -83,7 +93,7 @@ class QueryService:
                 "execution_time_ms": 0,
                 "confidence": 0.0,
                 "backend": gen_result.backend,
-                "error": error,
+                "error": "该问题无法通过安全校验，请避免涉及非财务数据表或敏感操作",
             }
             log_action(
                 db=db,
@@ -91,7 +101,7 @@ class QueryService:
                 resource=f"query://{tenant_id}",
                 result="failed",
                 user=user,
-                reason=truncate(f"question={question}, error={error}"),
+                reason=truncate(f"question={question}, error={exc!s}"),
             )
             return response
 
@@ -100,8 +110,14 @@ class QueryService:
         try:
             rows = db.execute(text(sql), {"tenant_id": tenant_id}).mappings().all()
             data = [dict(row) for row in rows]
-        except Exception as exc:  # noqa: BLE001
-            error = f"Execution failed: {exc!s}"
+        except SQLAlchemyError as exc:
+            logger.warning(
+                "nl2sql_execution_failed",
+                tenant_id=tenant_id,
+                question=question,
+                sql=sql,
+                error=str(exc),
+            )
             response = {
                 "question": question,
                 "sql": sql,
@@ -109,7 +125,7 @@ class QueryService:
                 "execution_time_ms": int((time.perf_counter() - start) * 1000),
                 "confidence": 0.0,
                 "backend": gen_result.backend,
-                "error": error,
+                "error": "查询执行失败，请换一种问法或联系管理员",
             }
             log_action(
                 db=db,
@@ -117,7 +133,7 @@ class QueryService:
                 resource=f"query://{tenant_id}",
                 result="failed",
                 user=user,
-                reason=truncate(f"question={question}, error={error}"),
+                reason=truncate(f"question={question}, error={exc!s}"),
             )
             return response
 

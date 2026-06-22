@@ -25,7 +25,7 @@ describe('ReportList', () => {
     render(<ReportList reports={reports} onSelect={handleSelect} />)
 
     expect(screen.getByText('第一季度报告')).toBeInTheDocument()
-    expect(screen.getByText('approved')).toBeInTheDocument()
+    expect(screen.getByText('已通过')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '查看' }))
     expect(handleSelect).toHaveBeenCalledTimes(1)

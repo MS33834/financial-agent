@@ -108,6 +108,6 @@ def get_document_api(
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found",
+            detail="文档不存在",
         )
     return {"code": 0, "message": "ok", "data": _to_document_response(doc)}

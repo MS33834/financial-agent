@@ -14,6 +14,7 @@ from app.im.commands import format_approval_result, parse_command
 from app.im.dingtalk import DingTalkBot
 from app.im.feishu import FeishuBot
 from app.im.wecom import WeComBot
+from app.models.im_user_mapping import IMUserMapping
 from app.models.report import Report
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -134,10 +135,10 @@ def test_dingtalk_webhook_user_not_found(client: TestClient) -> None:
         assert "未找到对应的系统用户" in resp.json()["text"]["content"]
 
 
-def test_dingtalk_webhook_user_found_by_attributes(
+def test_dingtalk_webhook_user_found_by_mapping(
     db_session: Session, client: TestClient
 ) -> None:
-    """通过 attributes 中的 dingtalk_user_id 匹配用户."""
+    """通过 IM 用户映射表匹配用户."""
     tenant = Tenant(name="IM Test", code="im-test")
     db_session.add(tenant)
     db_session.commit()
@@ -149,9 +150,18 @@ def test_dingtalk_webhook_user_found_by_attributes(
         hashed_password=get_password_hash("pass"),
         role="admin",
         is_active="Y",
-        attributes={"dingtalk_user_id": "ding123"},
     )
     db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    mapping = IMUserMapping(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        platform="dingtalk",
+        im_user_id="ding123",
+    )
+    db_session.add(mapping)
     db_session.commit()
 
     assert _get_user_by_im_id(db_session, "ding123") is not None
@@ -269,10 +279,10 @@ def test_feishu_webhook_challenge(client: TestClient, feishu_encrypt_key: str) -
     assert resp.json()["challenge"] == "xyz"
 
 
-def test_feishu_webhook_user_found_by_attributes(
+def test_feishu_webhook_user_found_by_mapping(
     db_session: Session, client: TestClient, feishu_encrypt_key: str
 ) -> None:
-    """通过 attributes 中的 feishu_user_id 匹配用户."""
+    """通过 IM 用户映射表匹配用户."""
     tenant = Tenant(name="Feishu Test", code="feishu-test")
     db_session.add(tenant)
     db_session.commit()
@@ -284,9 +294,18 @@ def test_feishu_webhook_user_found_by_attributes(
         hashed_password=get_password_hash("pass"),
         role="admin",
         is_active="Y",
-        attributes={"feishu_user_id": "fsu001"},
     )
     db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    mapping = IMUserMapping(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        platform="feishu",
+        im_user_id="fsu001",
+    )
+    db_session.add(mapping)
     db_session.commit()
 
     assert _get_user_by_im_id(db_session, "fsu001", platform="feishu") is not None
@@ -356,7 +375,14 @@ def test_dingtalk_webhook_approve_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """通过钉钉机器人审批报告."""
-    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
     db_session.commit()
     report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
 
@@ -383,7 +409,14 @@ def test_dingtalk_webhook_reject_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """通过钉钉机器人驳回报告."""
-    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
     db_session.commit()
     report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
 
@@ -410,7 +443,14 @@ def test_dingtalk_webhook_pending_reports(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """通过钉钉机器人查看待审报告列表."""
-    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
     db_session.commit()
     report_id = _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
 
@@ -432,7 +472,14 @@ def test_dingtalk_webhook_approve_non_reviewing_report(
 ) -> None:
     """对非 reviewing 状态报告审批返回友好提示."""
     monkeypatch.setattr(generate_report_task, "delay", lambda _report_id: None)
-    test_user.attributes = {"dingtalk_user_id": "ding_approver"}
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
     db_session.commit()
 
     resp = client.post(
@@ -464,7 +511,14 @@ def test_dingtalk_webhook_approve_viewer_forbidden(
 ) -> None:
     """viewer 角色通过 IM 审批应提示权限不足."""
     monkeypatch.setattr(generate_report_task, "delay", lambda _report_id: None)
-    viewer_user.attributes = {"dingtalk_user_id": "ding_viewer"}
+    db_session.add(
+        IMUserMapping(
+            tenant_id=viewer_user.tenant_id,
+            user_id=viewer_user.id,
+            platform="dingtalk",
+            im_user_id="ding_viewer",
+        )
+    )
     db_session.commit()
 
     resp = client.post(
@@ -569,14 +623,21 @@ def test_wecom_build_response() -> None:
     assert resp["content"]["content"] == "hello"
 
 
-def test_wecom_webhook_user_found_by_attributes(
+def test_wecom_webhook_user_found_by_mapping(
     db_session: Session,
     client: TestClient,
     test_user: User,
+    test_tenant: Tenant,
     wecom_token: str,  # noqa: ARG001
 ) -> None:
-    """通过 attributes 中的 wecom_user_id 匹配用户."""
-    test_user.attributes = {"wecom_user_id": "wxu001"}
+    """通过 IM 用户映射表匹配用户."""
+    mapping = IMUserMapping(
+        tenant_id=test_tenant.id,
+        user_id=test_user.id,
+        platform="wecom",
+        im_user_id="wxu001",
+    )
+    db_session.add(mapping)
     db_session.commit()
 
     xml = (

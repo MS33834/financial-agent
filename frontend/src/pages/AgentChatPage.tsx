@@ -1,6 +1,7 @@
-import { useState, type FormEvent, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, type FormEvent, useRef, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../api/client'
+import NavBar from '../components/NavBar.tsx'
 
 interface Message {
   id: string
@@ -9,69 +10,95 @@ interface Message {
   createdAt: Date
 }
 
+const SUGGESTIONS = [
+  '本月营业收入是多少？',
+  '2025年Q2净利润',
+  '总资产周转率',
+  '最近有哪些待审批报告？',
+]
+
 const formatTime = (date: Date) =>
   date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
 export default function AgentChatPage() {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const initialQuestion = params.get('question') || ''
+
   const [messages, setMessages] = useState<Message[]>([])
-  const [question, setQuestion] = useState('')
+  const [question, setQuestion] = useState(initialQuestion)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const initialSubmittedRef = useRef(false)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  const handleSubmit = async (e: FormEvent) => {
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const handleSubmitInternal = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed || loading) return
+
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: trimmed,
+        createdAt: new Date(),
+      }
+      setMessages((prev) => [...prev, userMessage])
+      setQuestion('')
+      setLoading(true)
+      setError('')
+
+      try {
+        const response = await api.post('/agent/chat', { question: trimmed })
+        const answer = response.data.data.answer as string
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `${Date.now()}-answer`,
+            role: 'agent',
+            content: answer,
+            createdAt: new Date(),
+          },
+        ])
+      } catch (err) {
+        setError('智能体回答失败，请稍后重试')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [loading],
+  )
+
+  useEffect(() => {
+    if (initialQuestion && !initialSubmittedRef.current) {
+      initialSubmittedRef.current = true
+      void handleSubmitInternal(initialQuestion)
+    }
+  }, [initialQuestion, handleSubmitInternal])
+
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!question.trim()) return
+    void handleSubmitInternal(question)
+  }
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: question.trim(),
-      createdAt: new Date(),
-    }
-    setMessages((prev) => [...prev, userMessage])
-    setQuestion('')
-    setLoading(true)
-    setError('')
-
-    try {
-      const response = await api.post('/agent/chat', { question: userMessage.content })
-      const answer = response.data.data.answer as string
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-answer`,
-          role: 'agent',
-          content: answer,
-          createdAt: new Date(),
-        },
-      ])
-    } catch (err) {
-      setError('智能体回答失败，请稍后重试')
-    } finally {
-      setLoading(false)
-    }
+  const onSuggestionClick = (text: string) => {
+    void handleSubmitInternal(text)
   }
 
   return (
     <div className="container">
       <div className="page-header">
         <h1>智能问答</h1>
-        <div className="navbar">
-          <Link to="/" className="nav-link">
-            财务报告
-          </Link>
-          <Link to="/documents" className="nav-link">
-            文档解析
-          </Link>
-          <Link to="/audit" className="nav-link">
-            审计日志
-          </Link>
-        </div>
+        <NavBar />
       </div>
 
       <div className="card chat-container">
@@ -89,6 +116,19 @@ export default function AgentChatPage() {
               </svg>
               <h4 className="empty-state-title">开始对话</h4>
               <p className="empty-state-desc">输入财务相关问题，智能体将基于报表数据为您解答。</p>
+              <div className="suggestion-chips">
+                {SUGGESTIONS.map((text) => (
+                  <button
+                    key={text}
+                    type="button"
+                    className="chip"
+                    onClick={() => onSuggestionClick(text)}
+                    disabled={loading}
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             messages.map((message) => (
@@ -105,8 +145,8 @@ export default function AgentChatPage() {
             <div className="chat-message agent">
               <div className="chat-avatar">AI</div>
               <div className="chat-bubble">
-                <span className="spinner" style={{ width: 14, height: 14, display: 'inline-block' }} />
-                <span style={{ marginLeft: 8 }}>思考中...</span>
+                <span className="spinner spinner-sm" />
+                <span className="loading-text">思考中...</span>
               </div>
             </div>
           )}
@@ -117,6 +157,7 @@ export default function AgentChatPage() {
 
         <form onSubmit={handleSubmit} className="chat-input">
           <input
+            ref={inputRef}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="请输入问题..."

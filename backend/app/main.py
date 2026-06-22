@@ -21,6 +21,7 @@ from app.routers import (
     approvals,
     audit,
     auth,
+    dashboard,
     dify_tools,
     documents,
     health,
@@ -118,6 +119,7 @@ def create_app() -> FastAPI:
     # 注册路由
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(dashboard.router)
     app.include_router(documents.router)
     app.include_router(queries.router)
     app.include_router(reports.router)

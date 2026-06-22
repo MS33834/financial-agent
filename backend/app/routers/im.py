@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.im.base import BaseIMBot, IMMessage
+from app.im.base import BaseIMBot, IMBotRegistry, IMMessage
 from app.im.commands import parse_command
-from app.im.dingtalk import DingTalkBot
-from app.im.feishu import FeishuBot
-from app.im.wecom import WeComBot
+from app.im.dingtalk import DingTalkBot  # noqa: F401  触发注册
+from app.im.feishu import FeishuBot  # noqa: F401
+from app.im.wecom import WeComBot  # noqa: F401
 from app.models.im_user_mapping import IMUserMapping
 from app.models.user import User
 from app.security import create_access_token
@@ -22,8 +22,7 @@ router = APIRouter(prefix="/api/v1/im", tags=["IM Bot"])
 def _get_user_by_im_id(db: Session, im_user_id: str, platform: str = "dingtalk") -> User | None:
     """根据 IM 用户 ID 查找系统用户.
 
-    优先查询独立的 IM 用户映射表；未命中时回退到 user.attributes 中的
-    `{platform}_user_id`，兼容 MVP 阶段的快速配置方式。
+    优先查询独立的 IM 用户映射表；未命中时回退到用户名匹配。
     """
     if not im_user_id:
         return None
@@ -43,23 +42,19 @@ def _get_user_by_im_id(db: Session, im_user_id: str, platform: str = "dingtalk")
         if user is not None:
             return user
 
-    # 兼容 attributes 方式
-    attr_key = f"{platform}_user_id"
-    users: list[User] = db.query(User).filter(User.is_active == "Y").all()
-    for user in users:
-        attributes = user.attributes or {}
-        if attributes.get(attr_key) == im_user_id:
-            return user
-
-    matched: User | None = db.query(User).filter(
+    return db.query(User).filter(
         User.username == im_user_id, User.is_active == "Y"
     ).first()
-    return matched
 
 
 def _handle_message(message: IMMessage, platform: str, db: Session) -> dict[str, Any]:
     """统一处理 IM 消息并返回平台响应."""
     bot = _get_bot(platform)
+    if bot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="不支持的 IM 平台",
+        )
 
     if not message.text:
         return bot.build_response("收到空消息，请输入 /help 查看支持的命令。")
@@ -94,13 +89,9 @@ def _handle_message(message: IMMessage, platform: str, db: Session) -> dict[str,
     return bot.build_response(reply)
 
 
-def _get_bot(platform: str) -> BaseIMBot:
-    """根据平台名称获取机器人实例."""
-    if platform == "feishu":
-        return FeishuBot()
-    if platform == "wecom":
-        return WeComBot()
-    return DingTalkBot()
+def _get_bot(platform: str) -> BaseIMBot | None:
+    """根据平台名称从注册表获取机器人实例."""
+    return IMBotRegistry.get_bot(platform)
 
 
 @router.post("/dingtalk")
@@ -116,7 +107,7 @@ async def dingtalk_webhook(
     if not bot.verify_signature(payload, headers):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid signature",
+            detail="签名验证失败",
         )
 
     message = bot.parse_message(payload)
@@ -137,7 +128,7 @@ async def feishu_webhook(
     if not bot.verify_signature(payload, headers, raw_body=raw_body):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid signature",
+            detail="签名验证失败",
         )
 
     # URL 验证
@@ -151,7 +142,7 @@ async def feishu_webhook(
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Decrypt failed: {exc!s}",
+                detail="事件解密失败",
             ) from exc
 
     message = bot.parse_message(payload)
@@ -174,7 +165,7 @@ async def wecom_webhook(
         if not bot.verify_signature({}, headers, raw_body=raw_body):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid signature",
+                detail="签名验证失败",
             )
         try:
             decrypted = bot.decrypt(query_params["echostr"])
@@ -182,7 +173,7 @@ async def wecom_webhook(
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Decrypt failed: {exc!s}",
+                detail="事件解密失败",
             ) from exc
 
     # POST 请求为事件推送
@@ -190,7 +181,7 @@ async def wecom_webhook(
     if not bot.verify_signature({}, headers, raw_body=raw_body):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid signature",
+            detail="签名验证失败",
         )
 
     encrypt = bot.extract_encrypt(raw_body)
@@ -200,7 +191,7 @@ async def wecom_webhook(
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Decrypt failed: {exc!s}",
+                detail="事件解密失败",
             ) from exc
     else:
         payload = {}
