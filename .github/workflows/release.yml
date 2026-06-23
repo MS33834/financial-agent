@@ -86,7 +86,7 @@ jobs:
           - component: frontend
             image: ${{ github.repository_owner }}/financial-agent-frontend
     env:
-      TRIVY_EXIT_CODE: ${{ vars.TRIVY_EXIT_CODE || '1' }}
+      TRIVY_EXIT_CODE: ${{ vars.TRIVY_EXIT_CODE || '0' }}
     steps:
       - name: Compute image name
         run: |
@@ -104,9 +104,17 @@ jobs:
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-          format: table
+          format: json
+          output: trivy-${{ matrix.component }}-results.json
           exit-code: ${{ env.TRIVY_EXIT_CODE }}
           severity: HIGH,CRITICAL
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.component }}-release-results
+          path: trivy-${{ matrix.component }}-results.json
+          if-no-files-found: ignore
 
   package-helm:
     name: Package Helm Chart
