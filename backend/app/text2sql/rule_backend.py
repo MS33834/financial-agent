@@ -59,7 +59,7 @@ class RuleBasedText2SQLBackend(Text2SQLBackend):
     @staticmethod
     def _extract_year(question: str) -> int | None:
         """提取 4 位年份."""
-        match = re.search(r"\b(20\d{2})\b", question)
+        match = re.search(r"(?<!\d)(20\d{2})(?!\d)", question)
         return int(match.group(1)) if match else None
 
     @staticmethod
