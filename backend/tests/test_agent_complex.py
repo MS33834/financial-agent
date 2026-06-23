@@ -347,6 +347,7 @@ def test_agent_long_question_truncated_in_audit(
         .first()
     )
     assert log is not None
+    assert log.reason is not None
     assert len(log.reason) <= 250
 
 
