@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     ollama_host: str = Field(default="http://fa-ollama:11434", description="Ollama 服务地址")
     ollama_model: str = Field(default="qwen2.5:7b", description="默认 Ollama 模型")
 
+    # OpenAI 兼容 API（如 mimo-v2.5-pro）
+    llm_provider: str = Field(default="ollama", description="LLM 提供者: ollama/openai")
+    openai_api_key: str | None = Field(default=None, description="OpenAI 兼容 API Key")
+    openai_base_url: str | None = Field(
+        default=None, description="OpenAI 兼容 API 基础地址，如 https://api.example.com/v1"
+    )
+
     # Dify 流程编排
     dify_base_url: str | None = Field(
         default=None, description="Dify API 基础地址，如 http://localhost:5001/v1"
