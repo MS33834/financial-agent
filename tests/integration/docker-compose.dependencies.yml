@@ -1,0 +1,73 @@
+# ==================================================================
+# 集成测试依赖服务
+# 仅启动 PostgreSQL + Redis + MinIO，在宿主机运行后端测试。
+# 用法：
+#   cd tests/integration
+#   docker compose -f docker-compose.dependencies.yml up -d
+#   cd ../../backend
+#   APP_ENV=integration \
+#     DATABASE_URL=postgresql+psycopg://postgres:difyai123456@localhost:5432/financial_agent_test \
+#     REDIS_URL=redis://:difyai123456@localhost:6379/3 \
+#     MINIO_ENDPOINT=localhost:9000 \
+#     MINIO_ACCESS_KEY=minioadmin \
+#     MINIO_SECRET_KEY=minioadmin123 \
+#     MINIO_BUCKET=financial-agent-test \
+#     MINIO_PUBLIC_URL=http://localhost:9000 \
+#     RATE_LIMIT_ENABLED=false \
+#     python -m pytest ../tests/integration -v
+# ==================================================================
+
+name: financial-agent-integration
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fa-integration-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: difyai123456
+      POSTGRES_DB: financial_agent_test
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-U", "postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: fa-integration-redis
+    command: redis-server --requirepass difyai123456
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a 'difyai123456' ping | grep -q PONG"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    container_name: fa-integration-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_test_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres_test_data:
+  minio_test_data:
