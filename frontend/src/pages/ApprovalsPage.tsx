@@ -24,7 +24,8 @@ export default function ApprovalsPage() {
     setError('')
     try {
       const response = await api.get('/approvals?report_id=')
-      setApprovals(response.data.data.items)
+      const payload = response.data.data
+      setApprovals(Array.isArray(payload) ? payload : payload?.items || [])
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 403) {
         setError('无权限访问审批记录')
