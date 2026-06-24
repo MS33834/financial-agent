@@ -14,10 +14,10 @@ import hmac
 import json
 import struct
 import time
-import xml.etree.ElementTree as ET
 from typing import Any
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from defusedxml import ElementTree as ET
 
 from app.config import get_settings
 from app.im.base import BaseIMBot, IMBotRegistry, IMMessage, send_webhook_with_retry

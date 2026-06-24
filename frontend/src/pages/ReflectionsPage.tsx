@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import axios from 'axios'
 import { api } from '../api/client.ts'
 import NavBar from '../components/NavBar.tsx'
 import Loading from '../components/ui/Loading.tsx'
 import Badge from '../components/ui/Badge.tsx'
 import EmptyState from '../components/ui/EmptyState.tsx'
+import Modal from '../components/ui/Modal.tsx'
+import { getErrorMessage } from '../utils/errors.ts'
 
 interface Reflection {
   id: string
@@ -60,11 +61,7 @@ export default function ReflectionsPage() {
       const response = await api.get('/reflections', { params })
       setData(response.data.data)
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || '加载自省日志失败')
-      } else {
-        setError('加载自省日志失败')
-      }
+      setError(getErrorMessage(err, '加载自省日志失败'))
     } finally {
       setLoading(false)
     }
@@ -83,11 +80,7 @@ export default function ReflectionsPage() {
       setResolution('')
       fetchReflections()
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || '标记解决失败')
-      } else {
-        setError('标记解决失败')
-      }
+      setError(getErrorMessage(err, '标记解决失败'))
     } finally {
       setResolving(false)
     }
@@ -111,7 +104,11 @@ export default function ReflectionsPage() {
         <NavBar />
       </div>
 
-      {error && <div className="alert alert-error mb-4">{error}</div>}
+      {error && (
+        <div className="alert alert-error mb-4" role="alert">
+          {error}
+        </div>
+      )}
 
       <div className="card mb-4">
         <div className="filters">
@@ -203,57 +200,47 @@ export default function ReflectionsPage() {
       )}
 
       {selected && (
-        <div className="modal-backdrop" onClick={() => setSelected(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>自省详情</h3>
-              <button className="btn ghost" onClick={() => setSelected(null)}>
-                关闭
+        <Modal title="自省详情" onClose={() => setSelected(null)}>
+          <div className="detail-group">
+            <label>异常消息</label>
+            <p>{selected.exception_message}</p>
+          </div>
+          <div className="detail-group">
+            <label>根因分析</label>
+            <p>{selected.root_cause || '暂无'}</p>
+          </div>
+          <div className="detail-group">
+            <label>修复建议</label>
+            <p>{selected.suggested_fix || '暂无'}</p>
+          </div>
+          {selected.stack_trace && (
+            <div className="detail-group">
+              <label>堆栈</label>
+              <pre className="code-block">{selected.stack_trace}</pre>
+            </div>
+          )}
+          {!selected.resolved && (
+            <div className="detail-group">
+              <label>解决方案</label>
+              <textarea
+                className="input"
+                rows={3}
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                placeholder="记录如何解决该问题..."
+              />
+              <button className="btn mt-2" onClick={handleResolve} disabled={resolving || !resolution.trim()}>
+                {resolving ? '提交中...' : '标记已解决'}
               </button>
             </div>
-            <div className="modal-body">
-              <div className="detail-group">
-                <label>异常消息</label>
-                <p>{selected.exception_message}</p>
-              </div>
-              <div className="detail-group">
-                <label>根因分析</label>
-                <p>{selected.root_cause || '暂无'}</p>
-              </div>
-              <div className="detail-group">
-                <label>修复建议</label>
-                <p>{selected.suggested_fix || '暂无'}</p>
-              </div>
-              {selected.stack_trace && (
-                <div className="detail-group">
-                  <label>堆栈</label>
-                  <pre className="code-block">{selected.stack_trace}</pre>
-                </div>
-              )}
-              {!selected.resolved && (
-                <div className="detail-group">
-                  <label>解决方案</label>
-                  <textarea
-                    className="input"
-                    rows={3}
-                    value={resolution}
-                    onChange={(e) => setResolution(e.target.value)}
-                    placeholder="记录如何解决该问题..."
-                  />
-                  <button className="btn mt-2" onClick={handleResolve} disabled={resolving || !resolution.trim()}>
-                    {resolving ? '提交中...' : '标记已解决'}
-                  </button>
-                </div>
-              )}
-              {selected.resolved && selected.resolution && (
-                <div className="detail-group">
-                  <label>已记录方案</label>
-                  <p>{selected.resolution}</p>
-                </div>
-              )}
+          )}
+          {selected.resolved && selected.resolution && (
+            <div className="detail-group">
+              <label>已记录方案</label>
+              <p>{selected.resolution}</p>
             </div>
-          </div>
-        </div>
+          )}
+        </Modal>
       )}
     </div>
   )

@@ -1,12 +1,14 @@
 """人工审核相关 Schema."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
 class ApprovalAction(BaseModel):
     """审核操作请求."""
 
-    action: str = Field(description="操作: approve/reject/modify")
+    action: Literal["approve", "reject", "modify"] = Field(description="操作: approve/reject/modify")
     comments: str | None = Field(default=None, description="审核意见")
 
 

@@ -1,6 +1,6 @@
 """Dify Tools API 相关 Schema."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,9 @@ class DifyCreateReportRequest(DifyToolBase):
     """Dify 创建报告 Tool 请求."""
 
     title: str = Field(description="报告标题")
-    report_type: str = Field(default="profit", description="报告类型")
+    report_type: Literal["profit", "balance", "cash", "custom"] = Field(
+        default="profit", description="报告类型"
+    )
     parameters: dict[str, Any] = Field(default_factory=dict, description="报告参数")
 
 
@@ -30,7 +32,9 @@ class DifyApproveReportRequest(DifyToolBase):
     """Dify 审批报告 Tool 请求."""
 
     report_id: str = Field(description="报告 ID")
-    action: str = Field(default="approve", description="approve/reject/modify")
+    action: Literal["approve", "reject", "modify"] = Field(
+        default="approve", description="approve/reject/modify"
+    )
     comments: str | None = Field(default=None, description="审批意见")
 
 

@@ -69,7 +69,11 @@ export default function DocumentUpload({ onUploaded }: DocumentUploadProps) {
           {uploading ? '上传中...' : '上传并解析'}
         </button>
       </div>
-      {error && <div className="alert alert-error">{error}</div>}
+      {error && (
+        <div className="alert alert-error" role="alert">
+          {error}
+        </div>
+      )}
     </form>
   )
 }

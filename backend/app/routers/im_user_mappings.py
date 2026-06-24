@@ -15,6 +15,10 @@ from app.dependencies import get_pagination, require_role
 from app.models.im_user_mapping import IMUserMapping
 from app.models.user import User
 from app.schemas.common import PaginatedResponse, PaginationParams
+from app.schemas.im_user_mapping import (
+    IMUserMappingCreate,
+    serialize_im_user_mapping,
+)
 
 router = APIRouter(prefix="/api/v1/im-user-mappings", tags=["IM User Mappings"])
 
@@ -40,17 +44,7 @@ def list_im_user_mappings(
     )
     return {
         "data": {
-            "items": [
-                {
-                    "id": item.id,
-                    "user_id": item.user_id,
-                    "platform": item.platform,
-                    "im_user_id": item.im_user_id,
-                    "created_at": item.created_at.isoformat() if item.created_at else None,
-                    "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-                }
-                for item in items
-            ],
+            "items": [serialize_im_user_mapping(item) for item in items],
             "total": total,
             "page": pagination.page,
             "page_size": pagination.page_size,
@@ -60,23 +54,13 @@ def list_im_user_mappings(
 
 @router.post("", response_model=dict[str, Any], status_code=status.HTTP_201_CREATED)
 def create_im_user_mapping(
-    payload: dict[str, Any],
+    payload: IMUserMappingCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "auditor")),
 ) -> dict[str, Any]:
     """创建 IM 用户映射."""
-    target_user_id = payload.get("user_id")
-    platform = payload.get("platform")
-    im_user_id = payload.get("im_user_id")
-
-    if not target_user_id or not platform or not im_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="user_id、platform、im_user_id 均为必填项",
-        )
-
     target_user: User | None = db.query(User).filter(
-        User.id == target_user_id,
+        User.id == payload.user_id,
         User.tenant_id == user.tenant_id,
         User.is_active == "Y",
     ).first()
@@ -90,8 +74,8 @@ def create_im_user_mapping(
         db.query(IMUserMapping)
         .filter(
             IMUserMapping.tenant_id == user.tenant_id,
-            IMUserMapping.platform == platform,
-            IMUserMapping.im_user_id == im_user_id,
+            IMUserMapping.platform == payload.platform,
+            IMUserMapping.im_user_id == payload.im_user_id,
         )
         .first()
     )
@@ -103,21 +87,14 @@ def create_im_user_mapping(
 
     mapping = IMUserMapping(
         tenant_id=user.tenant_id,
-        user_id=target_user_id,
-        platform=platform,
-        im_user_id=im_user_id,
+        user_id=payload.user_id,
+        platform=payload.platform,
+        im_user_id=payload.im_user_id,
     )
     db.add(mapping)
     db.commit()
     db.refresh(mapping)
-    return {
-        "id": mapping.id,
-        "user_id": mapping.user_id,
-        "platform": mapping.platform,
-        "im_user_id": mapping.im_user_id,
-        "created_at": mapping.created_at.isoformat() if mapping.created_at else None,
-        "updated_at": mapping.updated_at.isoformat() if mapping.updated_at else None,
-    }
+    return serialize_im_user_mapping(mapping)
 
 
 @router.delete("/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT)

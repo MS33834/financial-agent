@@ -33,7 +33,11 @@ export default function LoginPage() {
           <p className="login-brand-desc">请登录后继续</p>
         </div>
 
-        {error && <div className="alert alert-error mb-4">{error}</div>}
+        {error && (
+          <div className="alert alert-error mb-4" role="alert">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

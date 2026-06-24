@@ -37,7 +37,11 @@ export default function ReportCreate({ onCreated }: ReportCreateProps) {
   return (
     <div className="card">
       <h3 className="card-title">新建报告</h3>
-      {error && <div className="alert alert-error mb-4">{error}</div>}
+      {error && (
+        <div className="alert alert-error mb-4" role="alert">
+          {error}
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>标题</label>

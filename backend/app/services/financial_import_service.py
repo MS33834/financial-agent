@@ -111,9 +111,7 @@ def import_financial_record(
         if value is not None:
             setattr(report, field, value)
 
-    db.commit()
-    db.refresh(report)
-
+    # 记录写入与审计日志在同一事务提交，保证原子性
     log_action(
         db=db,
         action="financial_report.import",
@@ -121,7 +119,10 @@ def import_financial_record(
         user=None,
         result="success",
         reason=f"year={year};period={period}",
+        commit=False,
     )
+    db.commit()
+    db.refresh(report)
 
     return report
 

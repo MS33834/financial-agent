@@ -90,11 +90,21 @@ def update_report_status(
     db: Session,
     report: Report,
     status: str,
+    commit: bool = True,
 ) -> Report:
-    """更新报告状态."""
+    """更新报告状态.
+
+    Args:
+        db: 数据库会话。
+        report: 报告对象。
+        status: 新状态。
+        commit: 是否立即提交事务。当调用方处于更大的事务中时，
+            应传入 ``False``，由调用方统一提交以保证原子性。
+    """
     report.status = status
-    db.commit()
-    db.refresh(report)
+    if commit:
+        db.commit()
+        db.refresh(report)
     return report
 
 
@@ -104,11 +114,23 @@ def save_report_result(
     content: dict[str, Any],
     summary: str,
     status: str = "reviewing",
+    commit: bool = True,
 ) -> Report:
-    """保存报告生成结果."""
+    """保存报告生成结果.
+
+    Args:
+        db: 数据库会话。
+        report: 报告对象。
+        content: 报告内容。
+        summary: 摘要。
+        status: 目标状态。
+        commit: 是否立即提交事务。当调用方处于更大的事务中时，
+            应传入 ``False``，由调用方统一提交以保证原子性。
+    """
     report.content = content
     report.summary = summary
     report.status = status
-    db.commit()
-    db.refresh(report)
+    if commit:
+        db.commit()
+        db.refresh(report)
     return report

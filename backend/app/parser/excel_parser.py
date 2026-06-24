@@ -8,6 +8,9 @@ from typing import Any
 from app.parser.base import BaseDocumentParser, ParserRegistry
 from app.parser.utils import extract_period, extract_year
 
+# 单文件最大解析行数，防止恶意大文件耗尽内存
+MAX_EXCEL_ROWS = 100_000
+
 
 @ParserRegistry.register
 class ExcelParser(BaseDocumentParser):
@@ -34,6 +37,13 @@ class ExcelParser(BaseDocumentParser):
         rows = list(sheet.iter_rows(values_only=True))
         if len(rows) < 2:
             return self._empty_result(filename)
+
+        # 数据行数 = 总行数 - 表头行
+        data_row_count = len(rows) - 1
+        if data_row_count > MAX_EXCEL_ROWS:
+            raise ValueError(
+                f"Excel 数据行数 {data_row_count} 超过上限 {MAX_EXCEL_ROWS}，请拆分文件后重试"
+            )
 
         headers = [str(cell).strip() if cell is not None else "" for cell in rows[0]]
         records: list[dict[str, Any]] = []

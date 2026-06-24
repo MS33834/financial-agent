@@ -94,7 +94,7 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
         </div>
 
         {report.error_message && (
-          <div className="alert alert-error">生成错误: {report.error_message}</div>
+          <div className="alert alert-error" role="alert">生成错误: {report.error_message}</div>
         )}
 
         {report.summary && (
@@ -145,7 +145,11 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
           </div>
         )}
 
-        {exportError && <div className="alert alert-error">{exportError}</div>}
+        {exportError && (
+          <div className="alert alert-error" role="alert">
+            {exportError}
+          </div>
+        )}
       </div>
     </Modal>
   )

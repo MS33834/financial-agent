@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import axios from 'axios'
 import { api } from '../api/client.ts'
 import NavBar from '../components/NavBar.tsx'
 import Loading from '../components/ui/Loading.tsx'
 import Badge from '../components/ui/Badge.tsx'
+import { getErrorMessage } from '../utils/errors.ts'
 import {
   PieChart,
   Pie,
@@ -119,11 +119,7 @@ export default function DashboardPage() {
       const response = await api.get('/dashboard/summary')
       setSummary(response.data.data)
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || '加载仪表盘失败')
-      } else {
-        setError('加载仪表盘失败')
-      }
+      setError(getErrorMessage(err, '加载仪表盘失败'))
     } finally {
       setLoading(false)
     }
@@ -201,7 +197,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {error && <div className="alert alert-error mb-4">{error}</div>}
+      {error && (
+        <div className="alert alert-error mb-4" role="alert">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <Loading text="加载仪表盘中..." />

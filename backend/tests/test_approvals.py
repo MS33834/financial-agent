@@ -108,7 +108,10 @@ def test_approve_invalid_action(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """测试非法审核操作."""
+    """测试非法审核操作.
+
+    非法 action 值在 Schema 层被 Literal 枚举拦截，返回 422 校验错误。
+    """
     report_id = _create_report(client, auth_headers, monkeypatch)
     _force_reviewing(db_session, report_id)
 
@@ -117,7 +120,7 @@ def test_approve_invalid_action(
         json={"action": "freeze"},
         headers=auth_headers,
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_approve_report_not_found(client: TestClient, auth_headers: dict[str, str]) -> None:

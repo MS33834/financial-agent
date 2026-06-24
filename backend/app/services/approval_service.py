@@ -67,7 +67,8 @@ def record_approval(
     )
     db.add(approval)
 
-    update_report_status(db=db, report=report, status=new_status)
+    # 审批记录、报告状态、审计日志在同一事务中提交，保证原子性
+    update_report_status(db=db, report=report, status=new_status, commit=False)
 
     log_action(
         db=db,
@@ -76,10 +77,12 @@ def record_approval(
         user=user,
         result=new_status,
         reason=comments,
+        commit=False,
     )
 
     db.commit()
     db.refresh(approval)
+    db.refresh(report)
 
     with suppress(Exception):
         from app.metrics import FA_BUSINESS_OPERATIONS_TOTAL

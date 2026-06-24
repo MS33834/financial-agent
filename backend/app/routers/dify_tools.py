@@ -4,7 +4,7 @@
 所有接口使用 ``X-API-Key`` 做服务间认证，请求体中需携带 ``tenant_id`` 与 ``user_id``。
 """
 
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -66,12 +66,10 @@ def dify_create_report(
     """创建财务报告 Tool."""
     from app.schemas.report import ReportCreate
 
-    valid_report_type: Literal["profit", "balance", "cash", "custom"] = request.report_type  # type: ignore[assignment]
-
     user = _get_system_user(db, request.tenant_id, request.user_id)
     data = ReportCreate(
         title=request.title,
-        report_type=valid_report_type,
+        report_type=request.report_type,
         parameters=request.parameters,
     )
     report = create_report_task(db=db, data=data, user=user)

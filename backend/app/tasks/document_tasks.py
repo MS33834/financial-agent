@@ -36,6 +36,7 @@ def _update_document_status(
     parse_result: dict[str, Any] | None = None,
     confidence: float | None = None,
     error_message: str | None = None,
+    commit: bool = True,
 ) -> None:
     document.status = status
     if parse_result is not None:
@@ -44,7 +45,8 @@ def _update_document_status(
         document.confidence = confidence
     if error_message is not None:
         document.error_message = error_message
-    db.commit()
+    if commit:
+        db.commit()
 
 
 def _file_extension(filename: str) -> str:
@@ -111,12 +113,14 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
             parse_result["imported_count"] = len(imported)
 
         final_status = "success" if confidence >= 0.7 and cleaned_count > 0 else "needs_review"
+        # 状态更新与审计日志在同一事务提交，保证原子性
         _update_document_status(
             db,
             document,
             final_status,
             parse_result=parse_result,
             confidence=confidence,
+            commit=False,
         )
 
         user = _get_document_user(db, document)
@@ -141,6 +145,7 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
                 document,
                 "failed",
                 error_message=str(exc),
+                commit=False,
             )
             user = _get_document_user(db, document)
             log_action(
@@ -174,6 +179,7 @@ def parse_document_task(self: Any, document_id: str) -> dict[str, Any]:
                 document,
                 "failed",
                 error_message=str(exc),
+                commit=False,
             )
             user = _get_document_user(db, document)
             log_action(

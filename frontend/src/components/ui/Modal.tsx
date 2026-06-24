@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 interface ModalProps {
   title: string
@@ -8,14 +8,36 @@ interface ModalProps {
 }
 
 export default function Modal({ title, children, footer, onClose }: ModalProps) {
-  const titleId = `modal-title-${Math.random().toString(36).slice(2, 9)}`
+  // useId 保证 SSR/CSR 一致且稳定，避免 Math.random 每次渲染生成新 ID
+  const titleId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      // 焦点陷阱：Tab/Shift+Tab 时将焦点限制在弹窗内
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        )
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
     }
     document.addEventListener('keydown', handler)
+    // 进入时聚焦关闭按钮，离开时恢复焦点
     closeButtonRef.current?.focus()
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
@@ -23,6 +45,7 @@ export default function Modal({ title, children, footer, onClose }: ModalProps) 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={panelRef}
         className="modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

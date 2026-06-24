@@ -41,6 +41,7 @@ dependencies = [
     "fpdf2>=2.8.0",
     "pdfplumber>=0.11.0",
     "cryptography>=42.0.0",
+    "defusedxml>=0.7.0",
     "langgraph>=0.2.0",
     "prometheus-client>=0.20.0",
 ]

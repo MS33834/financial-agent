@@ -26,7 +26,7 @@ export default function DocumentDetail({ document: doc, onClose }: DocumentDetai
         )}
 
         {doc.error_message && (
-          <div className="alert alert-error">
+          <div className="alert alert-error" role="alert">
             <strong>错误：</strong>
             {doc.error_message}
           </div>

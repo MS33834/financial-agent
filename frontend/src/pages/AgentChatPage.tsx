@@ -153,7 +153,11 @@ export default function AgentChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {error && <div className="alert alert-error mb-4">{error}</div>}
+        {error && (
+          <div className="alert alert-error mb-4" role="alert">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="chat-input">
           <input

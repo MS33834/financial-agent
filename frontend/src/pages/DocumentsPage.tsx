@@ -136,7 +136,11 @@ export default function DocumentsPage() {
 
       <DocumentUpload onUploaded={handleUploaded} />
 
-      {error && <div className="alert alert-error mb-4">{error}</div>}
+      {error && (
+        <div className="alert alert-error mb-4" role="alert">
+          {error}
+        </div>
+      )}
 
       {loading ? <Loading text="加载文档中..." /> : <DocumentList documents={documents} onSelect={setSelected} />}
 

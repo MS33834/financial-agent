@@ -88,6 +88,7 @@ def _update_report_status(
     content: dict[str, Any] | None = None,
     summary: str | None = None,
     error_message: str | None = None,
+    commit: bool = True,
 ) -> None:
     report.status = status
     if content is not None:
@@ -96,7 +97,8 @@ def _update_report_status(
         report.summary = summary
     if error_message is not None:
         report.error_message = error_message
-    db.commit()
+    if commit:
+        db.commit()
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -123,12 +125,14 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
 
         result = ReportGenerator(db).generate(report)
 
+        # 状态更新与审计日志在同一事务提交，保证原子性
         _update_report_status(
             db,
             report,
             "reviewing",
             content=result["content"],
             summary=result["summary"],
+            commit=False,
         )
 
         creator = _get_report_creator(db, report)
@@ -154,6 +158,7 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
                 report,
                 "failed",
                 error_message=str(exc),
+                commit=False,
             )
             creator = _get_report_creator(db, report)
             log_action(
@@ -188,6 +193,7 @@ def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
                 report,
                 "failed",
                 error_message=str(exc),
+                commit=False,
             )
             creator = _get_report_creator(db, report)
             log_action(

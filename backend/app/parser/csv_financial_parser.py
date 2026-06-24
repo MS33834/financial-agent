@@ -4,6 +4,9 @@ import csv
 from io import StringIO
 from typing import Any
 
+# 单文件最大解析行数，防止恶意大文件耗尽内存
+MAX_CSV_ROWS = 100_000
+
 
 class CsvFinancialParser:
     """解析包含财务指标的 CSV 文件.
@@ -26,10 +29,20 @@ class CsvFinancialParser:
 
         Returns:
             每条记录为一个字段字典。
+
+        Raises:
+            ValueError: 超过最大行数限制时抛出。
         """
         text = self.content.decode("utf-8-sig")
         reader = csv.DictReader(StringIO(text))
-        return [dict(row) for row in reader]
+        records: list[dict[str, Any]] = []
+        for row in reader:
+            records.append(dict(row))
+            if len(records) > MAX_CSV_ROWS:
+                raise ValueError(
+                    f"CSV 行数超过上限 {MAX_CSV_ROWS}，请拆分文件后重试"
+                )
+        return records
 
     def confidence(self) -> float:
         """CSV 结构化数据置信度较高."""

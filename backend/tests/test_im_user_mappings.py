@@ -140,7 +140,7 @@ def test_create_im_user_mapping_user_not_found(
 def test_create_im_user_mapping_missing_fields(
     db_session: Session, client: TestClient
 ) -> None:
-    """缺少必填字段返回 400."""
+    """缺少必填字段返回 422 校验错误."""
     _user, headers, _tenant = _create_admin_user(db_session)
 
     resp = client.post(
@@ -148,7 +148,21 @@ def test_create_im_user_mapping_missing_fields(
         json={"platform": "dingtalk"},
         headers=headers,
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
+
+
+def test_create_im_user_mapping_invalid_platform(
+    db_session: Session, client: TestClient
+) -> None:
+    """无效平台返回 422 校验错误."""
+    user, headers, _tenant = _create_admin_user(db_session)
+
+    resp = client.post(
+        "/api/v1/im-user-mappings",
+        json={"user_id": user.id, "platform": "slack", "im_user_id": "x"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
 
 
 def test_delete_im_user_mapping(db_session: Session, client: TestClient) -> None:

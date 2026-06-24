@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
 import { api } from '../api/client'
 import NavBar from '../components/NavBar.tsx'
 import Loading from '../components/ui/Loading.tsx'
 import EmptyState from '../components/ui/EmptyState.tsx'
+import { getErrorMessage } from '../utils/errors.ts'
 import type { Approval } from '../types/approval'
 
 const statusMap: Record<string, string> = {
@@ -27,11 +27,7 @@ export default function ApprovalsPage() {
       const payload = response.data.data
       setApprovals(Array.isArray(payload) ? payload : payload?.items || [])
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        setError('无权限访问审批记录')
-      } else {
-        setError('加载审批记录失败')
-      }
+      setError(getErrorMessage(err, '加载审批记录失败'))
     } finally {
       setLoading(false)
     }
@@ -51,11 +47,7 @@ export default function ApprovalsPage() {
       setComments((prev) => ({ ...prev, [reportId]: '' }))
       await fetchApprovals()
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        setError('无权限执行该操作')
-      } else {
-        setError('操作失败')
-      }
+      setError(getErrorMessage(err, '操作失败'))
     } finally {
       setActing((prev) => ({ ...prev, [reportId]: false }))
     }
@@ -73,7 +65,11 @@ export default function ApprovalsPage() {
         </div>
       </div>
 
-      {error && <div className="alert alert-error mb-4">{error}</div>}
+      {error && (
+        <div className="alert alert-error mb-4" role="alert">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <Loading text="加载审批记录中..." />
