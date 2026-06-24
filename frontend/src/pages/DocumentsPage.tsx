@@ -40,7 +40,7 @@ export default function DocumentsPage() {
         ? `/documents?status=${filterStatus}&page=1&page_size=50`
         : '/documents?page=1&page_size=50'
       const response = await api.get(query)
-      setDocuments(response.data.data.items)
+      setDocuments(response.data.data?.items || [])
     } catch (err) {
       setError('加载文档列表失败')
     } finally {

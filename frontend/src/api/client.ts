@@ -19,8 +19,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+      // 排除登录接口，避免登录失败时触发页面刷新
+      const url = error.config?.url || ''
+      if (!url.includes('/auth/login')) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   },

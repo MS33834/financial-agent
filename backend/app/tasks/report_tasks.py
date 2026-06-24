@@ -99,7 +99,14 @@ def _update_report_status(
     db.commit()
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=10)  # type: ignore[untyped-decorator]
+@celery_app.task(  # type: ignore[untyped-decorator]
+    bind=True,
+    max_retries=3,
+    default_retry_delay=10,
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+)
 def generate_report_task(self: Any, report_id: str) -> dict[str, Any]:
     """异步生成报告任务。"""
     db = SessionLocal()

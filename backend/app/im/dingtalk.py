@@ -55,6 +55,14 @@ class DingTalkBot(BaseIMBot):
         if not timestamp or not sign:
             return False
 
+        # 校验时间戳新鲜度，防止重放攻击（5 分钟窗口）
+        try:
+            ts = int(timestamp)
+        except ValueError:
+            return False
+        if abs(int(time.time() * 1000) - ts) > 300_000:
+            return False
+
         expected = self._compute_sign(timestamp)
         return hmac.compare_digest(expected, sign)
 

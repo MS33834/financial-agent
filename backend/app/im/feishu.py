@@ -12,6 +12,7 @@ import base64
 import hashlib
 import hmac
 import json
+import time
 from typing import Any
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -59,6 +60,14 @@ class FeishuBot(BaseIMBot):
         nonce = normalized.get("x-lark-request-nonce", "")
         signature = normalized.get("x-lark-signature", "")
         if not timestamp or not nonce or not signature:
+            return False
+
+        # 校验时间戳新鲜度，防止重放攻击（5 分钟窗口）
+        try:
+            ts = int(timestamp)
+        except ValueError:
+            return False
+        if abs(int(time.time()) - ts) > 300:
             return False
 
         sign_str = f"{timestamp}{nonce}{self.encrypt_key}{raw_body.decode('utf-8')}"

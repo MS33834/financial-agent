@@ -1,5 +1,6 @@
 """文档解析任务路由."""
 
+import re
 from typing import Any
 from uuid import uuid4
 
@@ -20,6 +21,8 @@ from app.services.document_service import create_document_task, get_document, li
 from app.storage import get_storage_client
 
 router = APIRouter(prefix="/api/v1/documents", tags=["Documents"])
+
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 def _to_document_response(doc: Any) -> dict[str, Any]:
@@ -60,10 +63,21 @@ async def upload_document(
 ) -> dict[str, Any]:
     """上传文件并创建文档解析任务."""
     content = await file.read()
-    filename = file.filename or "unknown"
+
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文件大小超过限制（最大 {MAX_UPLOAD_SIZE // 1024 // 1024}MB）",
+        )
+
+    # 净化文件名：移除路径分隔符和控制字符，限制长度
+    raw_filename = file.filename or "unknown"
+    safe_filename = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', raw_filename)[:255]
+    if not safe_filename.strip():
+        safe_filename = "unknown"
 
     storage = get_storage_client()
-    key = f"documents/{user.tenant_id}/{uuid4()}/{filename}"
+    key = f"documents/{user.tenant_id}/{uuid4()}/{safe_filename}"
     storage.upload_bytes(
         key=key,
         data=content,
@@ -72,7 +86,7 @@ async def upload_document(
 
     doc = create_document_task(
         db=db,
-        data=DocumentCreate(filename=filename, storage_key=key),
+        data=DocumentCreate(filename=safe_filename, storage_key=key),
         user=user,
     )
     return {"code": 0, "message": "ok", "data": _to_document_response(doc)}

@@ -24,6 +24,7 @@ export default function ReportCreate({ onCreated }: ReportCreateProps) {
         report_type: reportType,
         parameters: { year, period },
       })
+      if (!response.data.data) return
       onCreated(response.data.data as Report)
       setTitle('')
     } catch (err) {
@@ -56,7 +57,10 @@ export default function ReportCreate({ onCreated }: ReportCreateProps) {
             <input
               type="number"
               value={year}
-              onChange={(e) => setYear(parseInt(e.target.value, 10))}
+              onChange={(e) => {
+                const parsed = parseInt(e.target.value, 10)
+                setYear(Number.isNaN(parsed) ? new Date().getFullYear() : parsed)
+              }}
               required
             />
           </div>

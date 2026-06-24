@@ -44,7 +44,7 @@ export default function DocumentUpload({ onUploaded }: DocumentUploadProps) {
           'Content-Type': 'multipart/form-data',
         },
       })
-      onUploaded(response.data.data)
+      if (response.data.data) onUploaded(response.data.data)
       setFile(null)
       const input = document.getElementById('file-input') as HTMLInputElement
       if (input) input.value = ''

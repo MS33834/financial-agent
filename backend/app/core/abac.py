@@ -97,11 +97,13 @@ class ABACEngine:
         resource_attributes: dict[str, Any],
     ) -> dict[str, Any]:
         """构建评估上下文."""
+        # 用户自定义属性放在 attributes 子键下，防止覆盖保留字段
+        user_attrs = user.attributes or {}
         return {
             "user": {
                 "id": user.id,
                 "role": user.role,
-                **(user.attributes or {}),
+                "attributes": user_attrs,
             },
             "resource": resource_attributes,
         }

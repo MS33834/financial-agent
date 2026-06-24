@@ -15,7 +15,7 @@ export default function AuditPage() {
     setError('')
     try {
       const response = await api.get('/audit/logs?page=1&page_size=100')
-      setLogs(response.data.data.items)
+      setLogs(response.data.data?.items || [])
     } catch (err) {
       setError('加载审计日志失败，可能没有权限')
     } finally {

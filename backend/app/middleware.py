@@ -4,6 +4,7 @@
 多实例部署时应替换为 Redis / 网关层限流。
 """
 
+import asyncio
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from time import time
@@ -59,6 +60,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window_seconds = window_seconds
         self.key_func = key_func
         self._requests: dict[str, list[float]] = defaultdict(list)
+        self._lock = asyncio.Lock()
 
     async def dispatch(
         self,
@@ -69,16 +71,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         now = time()
         window_start = now - self.window_seconds
 
-        # 清理过期记录并统计当前窗口
-        records = self._requests[client_ip]
-        records[:] = [t for t in records if t > window_start]
+        # 加锁保护，防止并发下的竞态条件
+        async with self._lock:
+            # 清理过期记录并统计当前窗口
+            records = self._requests[client_ip]
+            records[:] = [t for t in records if t > window_start]
 
-        if len(records) >= self.max_requests:
-            return JSONResponse(
-                status_code=429,
-                content={"code": 429, "message": "Too many requests"},
-                headers={"Retry-After": str(self.window_seconds)},
-            )
+            if len(records) >= self.max_requests:
+                return JSONResponse(
+                    status_code=429,
+                    content={"code": 429, "message": "Too many requests"},
+                    headers={"Retry-After": str(self.window_seconds)},
+                )
 
-        records.append(now)
+            records.append(now)
+
         return await call_next(request)

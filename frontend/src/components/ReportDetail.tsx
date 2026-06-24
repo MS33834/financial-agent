@@ -37,10 +37,16 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
     setExporting(true)
     setExportError('')
     try {
-      const response = await api.get(`/reports/${report.id}/export?fmt=${format}`)
-      const url = response.data.data.content_url as string
+      const response = await api.post(`/reports/${report.id}/export`, null, {
+        params: { format },
+      })
+      const url = response.data.data?.content_url
+      if (!url) {
+        setExportError('导出链接获取失败')
+        return
+      }
       window.open(url, '_blank')
-    } catch (err) {
+    } catch {
       setExportError('导出失败')
     } finally {
       setExporting(false)
@@ -113,7 +119,11 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
                   {report.content.sections.map((section) => (
                     <tr key={section.metric}>
                       <td>{section.name}</td>
-                      <td>{section.value.toLocaleString()}</td>
+                      <td>
+                        {typeof section.value === 'number'
+                          ? section.value.toLocaleString()
+                          : section.value ?? '-'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

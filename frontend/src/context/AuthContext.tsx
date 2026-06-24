@@ -18,19 +18,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await axios.post('/api/v1/auth/login', { username, password })
-    const accessToken = response.data.data.access_token as string
+    const accessToken = response.data.data?.access_token
+    if (!accessToken) {
+      throw new Error('登录响应异常')
+    }
     localStorage.setItem('token', accessToken)
     setToken(accessToken)
 
-    const meResponse = await axios.get('/api/v1/auth/me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-    const userRole = meResponse.data.data.role as string
-    const userName = meResponse.data.data.username as string
-    localStorage.setItem('role', userRole)
-    localStorage.setItem('username', userName)
-    setRole(userRole)
-    setUsername(userName)
+    try {
+      const meResponse = await axios.get('/api/v1/auth/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      const userRole = meResponse.data.data?.role
+      const userName = meResponse.data.data?.username
+      if (!userRole || !userName) {
+        throw new Error('用户信息响应异常')
+      }
+      localStorage.setItem('role', userRole)
+      localStorage.setItem('username', userName)
+      setRole(userRole)
+      setUsername(userName)
+    } catch {
+      // /me 失败时回滚，避免进入不一致状态
+      localStorage.removeItem('token')
+      setToken(null)
+      throw new Error('获取用户信息失败')
+    }
   }, [])
 
   const logout = useCallback(() => {

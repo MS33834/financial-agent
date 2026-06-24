@@ -92,7 +92,11 @@ class StorageClient:
         """
         try:
             response = self.client.get_object(self.bucket, key)
-            return response.read()
+            try:
+                return response.read()
+            finally:
+                response.close()
+                response.release_conn()
         except S3Error as exc:
             raise StorageClientError(f"下载失败: {exc}") from exc
 

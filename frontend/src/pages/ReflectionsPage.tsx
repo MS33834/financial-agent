@@ -48,6 +48,7 @@ export default function ReflectionsPage() {
   const [resolved, setResolved] = useState('')
   const [selected, setSelected] = useState<Reflection | null>(null)
   const [resolution, setResolution] = useState('')
+  const [resolving, setResolving] = useState(false)
 
   const fetchReflections = useCallback(async () => {
     setLoading(true)
@@ -74,7 +75,8 @@ export default function ReflectionsPage() {
   }, [fetchReflections])
 
   const handleResolve = async () => {
-    if (!selected || !resolution.trim()) return
+    if (!selected || !resolution.trim() || resolving) return
+    setResolving(true)
     try {
       await api.post(`/reflections/${selected.id}/resolve`, { resolution: resolution.trim() })
       setSelected(null)
@@ -86,6 +88,8 @@ export default function ReflectionsPage() {
       } else {
         setError('标记解决失败')
       }
+    } finally {
+      setResolving(false)
     }
   }
 
@@ -236,8 +240,8 @@ export default function ReflectionsPage() {
                     onChange={(e) => setResolution(e.target.value)}
                     placeholder="记录如何解决该问题..."
                   />
-                  <button className="btn mt-2" onClick={handleResolve}>
-                    标记已解决
+                  <button className="btn mt-2" onClick={handleResolve} disabled={resolving || !resolution.trim()}>
+                    {resolving ? '提交中...' : '标记已解决'}
                   </button>
                 </div>
               )}

@@ -33,6 +33,8 @@ class SQLSandbox:
         "into",
         "merge",
         "replace",
+        "union",
+        "with",
     )
 
     # 危险函数/子句

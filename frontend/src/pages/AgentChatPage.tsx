@@ -59,7 +59,7 @@ export default function AgentChatPage() {
 
       try {
         const response = await api.post('/agent/chat', { question: trimmed })
-        const answer = response.data.data.answer as string
+        const answer = response.data.data?.answer ?? '暂无回答'
         setMessages((prev) => [
           ...prev,
           {
@@ -69,7 +69,7 @@ export default function AgentChatPage() {
             createdAt: new Date(),
           },
         ])
-      } catch (err) {
+      } catch {
         setError('智能体回答失败，请稍后重试')
       } finally {
         setLoading(false)

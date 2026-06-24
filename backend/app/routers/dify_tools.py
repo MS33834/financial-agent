@@ -129,9 +129,26 @@ def dify_approve_report(
 @router.post("/parse_document", response_model=DifyToolResponse)
 def dify_parse_document(
     request: DifyParseDocumentRequest,
+    db: Session = Depends(get_db),
     _api_key: str = Depends(require_dify_api_key),
 ) -> dict[str, Any]:
     """触发文档解析任务 Tool（异步）."""
+    # 校验文档归属，防止越权触发任意租户的文档解析
+    from app.models.document import Document
+
+    doc = db.query(Document).filter(Document.id == request.document_id).first()
+    if doc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    user = _get_system_user(db, request.tenant_id, request.user_id)
+    if doc.tenant_id != user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Document does not belong to the tenant",
+        )
+
     task = parse_document_task.delay(request.document_id)
     return {
         "success": True,

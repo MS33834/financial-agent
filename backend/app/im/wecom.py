@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import struct
+import time
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -60,6 +61,14 @@ class WeComBot(BaseIMBot):
         nonce = headers.get("nonce", "")
         signature = headers.get("msg_signature", "")
         if not timestamp or not nonce or not signature or raw_body is None:
+            return False
+
+        # 校验时间戳新鲜度，防止重放攻击（5 分钟窗口）
+        try:
+            ts = int(timestamp)
+        except ValueError:
+            return False
+        if abs(int(time.time()) - ts) > 300:
             return False
 
         # 从原始 XML body 中提取 Encrypt 字段

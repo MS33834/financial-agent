@@ -25,8 +25,8 @@ def _check_database() -> tuple[bool, str]:
         with engine.connect() as conn:
             conn.execute(sa.text("SELECT 1"))
         return True, "connected"
-    except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+    except Exception:  # noqa: BLE001
+        return False, "database error"
 
 
 def _check_redis() -> tuple[bool, str]:
@@ -41,8 +41,8 @@ def _check_redis() -> tuple[bool, str]:
         if client.ping() is True:
             return True, "connected"
         return False, "ping failed"
-    except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+    except Exception:  # noqa: BLE001
+        return False, "redis error"
 
 
 def _check_minio() -> tuple[bool, str]:
@@ -61,8 +61,8 @@ def _check_minio() -> tuple[bool, str]:
         )
         client.list_buckets()
         return True, "connected"
-    except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+    except Exception:  # noqa: BLE001
+        return False, "minio error"
 
 
 @router.get("", status_code=status.HTTP_200_OK, response_model=BaseResponse)

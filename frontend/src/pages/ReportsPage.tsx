@@ -28,7 +28,7 @@ export default function ReportsPage() {
     setError('')
     try {
       const response = await api.get('/reports?page=1&page_size=50')
-      setReports(response.data.data.items)
+      setReports(response.data.data?.items || [])
     } catch (err) {
       setError('加载报告列表失败')
     } finally {

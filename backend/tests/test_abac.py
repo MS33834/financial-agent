@@ -63,7 +63,7 @@ def test_abac_allow_policy(
         action="read",
         effect="allow",
         priority=100,
-        conditions={"user.department": "finance"},
+        conditions={"user.attributes.department": "finance"},
     )
     db_session.add(policy)
     db_session.commit()
@@ -87,7 +87,7 @@ def test_abac_deny_priority(
                 action="delete",
                 effect="allow",
                 priority=100,
-                conditions={"user.department": "finance"},
+                conditions={"user.attributes.department": "finance"},
             ),
             AccessPolicy(
                 tenant_id=abac_tenant.id,
@@ -96,7 +96,7 @@ def test_abac_deny_priority(
                 action="delete",
                 effect="deny",
                 priority=10,
-                conditions={"user.level": "lte:2"},
+                conditions={"user.attributes.level": "lte:2"},
             ),
         ]
     )
@@ -126,8 +126,8 @@ def test_abac_operators(
         effect="allow",
         priority=1,
         conditions={
-            "user.level": "gte:3",
-            "user.department": "in:finance,audit",
+            "user.attributes.level": "gte:3",
+            "user.attributes.department": "in:finance,audit",
             "resource.sensitivity": "lte:2",
         },
     )

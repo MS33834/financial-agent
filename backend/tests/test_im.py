@@ -1,6 +1,7 @@
 """IM 机器人测试."""
 
 import json
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import cast
@@ -57,7 +58,7 @@ def test_parse_command_invalid() -> None:
 def test_dingtalk_verify_signature(dingtalk_secret: str) -> None:
     """钉钉签名验证通过."""
     bot = DingTalkBot(app_secret=dingtalk_secret)
-    timestamp = "1234567890"
+    timestamp = str(int(time.time() * 1000))
     sign = _compute_dingtalk_sign(dingtalk_secret, timestamp)
     assert bot.verify_signature({}, {"timestamp": timestamp, "sign": sign}) is True
 
@@ -217,7 +218,7 @@ def _compute_feishu_sign(encrypt_key: str, timestamp: str, nonce: str, body: byt
 def test_feishu_verify_signature(feishu_encrypt_key: str) -> None:
     """飞书签名验证通过."""
     bot = FeishuBot(encrypt_key=feishu_encrypt_key)
-    timestamp = "1234567890"
+    timestamp = str(int(time.time()))
     nonce = "abc123"
     body = b'{"type":"url_verification","challenge":"c1"}'
     sign = _compute_feishu_sign(feishu_encrypt_key, timestamp, nonce, body)
@@ -264,7 +265,7 @@ def test_feishu_build_response() -> None:
 def test_feishu_webhook_challenge(client: TestClient, feishu_encrypt_key: str) -> None:
     """飞书 URL 验证返回 challenge."""
     body = b'{"type":"url_verification","challenge":"xyz","token":"t"}'
-    timestamp = "1234567890"
+    timestamp = str(int(time.time()))
     nonce = "n1"
     sign = _compute_feishu_sign(feishu_encrypt_key, timestamp, nonce, body)
     resp = client.post(
@@ -326,7 +327,7 @@ def test_feishu_webhook_user_found_by_mapping(
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    timestamp = "1234567890"
+    timestamp = str(int(time.time()))
     nonce = "n1"
     sign = _compute_feishu_sign(feishu_encrypt_key, timestamp, nonce, body)
 
@@ -672,7 +673,7 @@ def _compute_wecom_sign(token: str, timestamp: str, nonce: str, encrypt: str) ->
 def test_wecom_verify_signature(wecom_token: str) -> None:
     """企业微信签名验证通过."""
     bot = WeComBot(token=wecom_token)
-    timestamp = "1234567890"
+    timestamp = str(int(time.time()))
     nonce = "abc123"
     encrypt = "encrypt-data"
     sign = _compute_wecom_sign(wecom_token, timestamp, nonce, encrypt)
