@@ -36,8 +36,8 @@
 | ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
 |----|------|------|------|-----------------|----------|
 | H1 | 部署 | 验证 `make init && make up` 在干净环境可跑通 | 待验证 | 找一台新机器或 CI job 执行完整启动流程，确认 Dify 与 FA 网络互通、数据库可连、前端可访问 | `Makefile`, `docker-compose.yml` |
-| H2 | 部署 | 修复 `down-volumes` 同时清理 Dify 数据卷 | 待修复 | 当前 `down-volumes` 只停 FA，应同步停止 dify 项目并可选清理卷 | `Makefile` |
-| H3 | 部署 | 解决 `make up-build` 不会触发镜像重建的问题 | 待修复 | 当前 `up-build` 直接调 `make up`，未传 `--build` | `Makefile` |
+| H2 | 部署 | 修复 `down-volumes` 同时清理 Dify 数据卷 | 已完成 | `down-volumes` 已同步调用 `docker compose ... -p dify down -v` 清理 Dify 卷 | `Makefile` |
+| H3 | 部署 | 解决 `make up-build` 不会触发镜像重建的问题 | 已完成 | `up-build` 已显式对 Dify 与 FA 分别传入 `--build` | `Makefile` |
 | H4 | 安全 | 强制生产环境修改默认 SECRET_KEY / INIT_PASSWORD | 待实现 | 在 `scripts/bootstrap.py` 或 entrypoint 中增加校验，禁止用户使用示例弱密钥启动 production | `scripts/bootstrap.py`, `scripts/entrypoint.sh` |
 | H5 | 安全 | 生产环境 CORS 默认禁止通配符 | 待实现 | 当前代码在 `CORS_ORIGINS=*` 时禁用 credentials，但建议 production 直接拒绝启动并提示 | `app/main.py` |
 | H6 | 后端 | 修复 `IMService` 用 `TestClient` 调用内部 API 的架构问题 | 待重构 | MVP 注释已说明应改为直接调用 service 层；当前方式耦合 FastAPI 测试客户端，生产环境不推荐 | `app/services/im_service.py` |
@@ -85,6 +85,35 @@
 
 ---
 
+### 2.4 本次 Review 新增任务（2026-06-25）
+
+> 以下任务来自对 MVP 闭环性的 review，按 P0/P1/P2 分级，团队可优先执行 P0/P1。
+
+#### P0（不修复则 MVP 无法跑通）
+
+| ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
+|----|------|------|------|-----------------|----------|
+| R1 | 配置 | 修复 `CORS_ORIGINS` 导致后端启动失败 | 待修复 | `.env.example` 中逗号分隔字符串无法被 Pydantic `list[str]` 解析；建议改为 JSON 数组或在 `config.py` 增加 comma-split validator | `.env.example`, `backend/app/config.py` |
+| R2 | 前端 | 重写审批页面，打通审批 UI 闭环 | 待修复 | 当前页面拉取的是审批历史记录，且字段与后端不匹配；应改为拉取 `GET /reports?status=reviewing` 列表并执行审批操作 | `frontend/src/pages/ApprovalsPage.tsx`, `frontend/src/types/approval.ts` |
+
+#### P1（功能有明显缺陷）
+
+| ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
+|----|------|------|------|-----------------|----------|
+| R3 | 后端 | 修复 Agent 文档问答状态过滤错误 | 待修复 | `document_qa_tool` 使用 `status.in_({"completed", ...})`，但 Document 状态无 `completed`，应为 `success` | `backend/app/agent_runtime/tools.py` |
+| R4 | DevOps | 修复 Makefile 中指向 Dify 服务的错误命令 | 待修复 | `logs-api` / `shell-api` 在 FA compose 中找不到 `api` 服务，应指定 Dify compose 文件路径 | `Makefile` |
+| R5 | 前端 | 报告导出按钮按状态禁用 | 待修复 | 后端仅允许 `reviewing` / `approved` 状态导出，前端应在其他状态禁用导出按钮 | `frontend/src/components/ReportDetail.tsx` |
+| R6 | 文档 | 持续同步 ROADMAP 与实际进度 | 进行中 | 本次已将 H2/H3 标记为完成；后续修复完 R1~R5 后需同步更新本表 | `docs/ROADMAP.md` |
+
+#### P2（架构/生产隐患）
+
+| ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
+|----|------|------|------|-----------------|----------|
+| R7 | 配置 | 修正 Dify 控制台地址端口 | 待修复 | `.env.example` 中 `CONSOLE_WEB_URL=http://localhost:3000` 与 FA 前端端口冲突，且与 README 不一致，应改为 `8080` | `.env.example` |
+| R8 | 后端 | IMService 改为直接调用 service 层 | 待重构 | 当前用 `TestClient` 调内部 API，生产环境不推荐，应改为直接调用 `report_service` / `approval_service` / `query_service` | `backend/app/services/im_service.py` |
+
+---
+
 ## 3. 需要用户决策的事项
 
 | ID | 问题 | 选项 | 建议 |
@@ -119,3 +148,4 @@
 | 日期 | 更新人 | 变更内容 |
 |------|--------|----------|
 | 2026-06-25 | AI Assistant | 初始创建，包含全面 review 结果与完善计划 |
+| 2026-06-25 | AI Assistant | 新增本次 MVP 闭环 review 任务（R1~R8），并将 H2/H3 标记为已完成 |
