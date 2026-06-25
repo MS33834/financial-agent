@@ -30,3 +30,9 @@ export interface PaginatedResponse<T> {
   page_size: number
   items: T[]
 }
+
+export interface DataResponse<T> {
+  code: number
+  message: string
+  data: T
+}

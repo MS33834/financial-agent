@@ -76,7 +76,7 @@ def _seed_document(db_session: Session, tenant: Tenant) -> Document:
         tenant_id=tenant.id,
         filename="demo_report.pdf",
         storage_key="demo/report.pdf",
-        status="completed",
+        status="success",
         parse_result={"text": "公司 2025 年 Q2 营收增长 20%，净利润提升 15%。"},
     )
     db_session.add(document)

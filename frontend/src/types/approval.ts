@@ -1,11 +1,7 @@
-export interface Approval {
+export interface PendingApproval {
   id: string
   report_id: string
   report_title: string
-  status: 'pending' | 'approved' | 'rejected'
-  reviewer_id: string | null
-  reviewer_name: string | null
-  comments: string | null
+  status: 'reviewing'
   created_at: string
-  updated_at: string
 }

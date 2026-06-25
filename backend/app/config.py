@@ -4,6 +4,7 @@
 敏感信息不硬编码，通过 .env 或运行时注入。
 """
 
+import json
 from functools import lru_cache
 
 from pydantic import Field
@@ -130,9 +131,28 @@ class Settings(BaseSettings):
     max_page_size: int = Field(default=100, description="最大分页大小")
 
     # 生产加固
-    cors_origins: list[str] = Field(
-        default=["*"], description="CORS 允许的源列表，生产环境应限制为前端域名"
+    # 注意：pydantic-settings 对 list 类型会强制按 JSON 解析环境变量，
+    # 为支持逗号分隔写法，这里用 str 存储原始值，通过 cors_origins_list 解析成列表。
+    cors_origins: str = Field(
+        default="*", description="CORS 允许的源列表，支持逗号分隔或 JSON 数组"
     )
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """将 cors_origins 解析为列表."""
+        value = self.cors_origins.strip()
+        if value.startswith("["):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ValueError("CORS_ORIGINS JSON 格式非法") from exc
+            if not isinstance(parsed, list):
+                raise ValueError("CORS_ORIGINS JSON 必须是数组")
+            return [str(item) for item in parsed]
+        if not value:
+            return ["*"]
+        return [item.strip() for item in value.split(",") if item.strip()]
+
     rate_limit_enabled: bool = Field(
         default=True, description="是否启用请求速率限制"
     )

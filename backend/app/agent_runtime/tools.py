@@ -147,7 +147,7 @@ def document_qa_tool(
                 session.query(Document)
                 .filter(
                     Document.tenant_id == tenant_id,
-                    Document.status.in_({"completed", "needs_review"}),
+                    Document.status.in_({"success", "needs_review"}),
                 )
                 .order_by(Document.created_at.desc())
                 .first()

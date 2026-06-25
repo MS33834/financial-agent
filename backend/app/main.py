@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
     # CORS（生产环境通过 CORS_ORIGINS 限制为前端域名）
     # 安全规则：通配符 "*" 不能与 allow_credentials=True 同时使用，
     # 否则任意源都能携带凭证访问，存在 CSRF/凭证泄露风险。
-    cors_origins = settings.cors_origins
+    cors_origins = settings.cors_origins_list
     is_wildcard = cors_origins == ["*"]
     if is_wildcard:
         logger.warning(

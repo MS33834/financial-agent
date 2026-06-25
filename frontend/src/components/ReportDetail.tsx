@@ -23,6 +23,11 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
   const [exportError, setExportError] = useState('')
   const [format, setFormat] = useState<'pdf' | 'xlsx' | 'markdown' | 'json'>('markdown')
 
+  const canExport = useMemo(
+    () => report.status === 'reviewing' || report.status === 'approved',
+    [report.status]
+  )
+
   const chartData = useMemo(() => {
     if (!report.content) return []
     return report.content.sections
@@ -68,7 +73,11 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
             <option value="markdown">Markdown</option>
             <option value="json">JSON</option>
           </select>
-          <button onClick={handleExport} disabled={exporting}>
+          <button
+            onClick={handleExport}
+            disabled={exporting || !canExport}
+            title={canExport ? '导出报告' : '仅 reviewing 或 approved 状态的报告可导出'}
+          >
             {exporting ? '导出中...' : '导出'}
           </button>
           {report.content_url && (

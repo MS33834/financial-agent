@@ -116,7 +116,11 @@ logs: ## 查看所有服务日志（跟随模式）
 	docker compose -f $(COMPOSE_FILE) logs -f
 
 logs-api: ## 查看 Dify API 日志
-	docker compose -f $(COMPOSE_FILE) logs -f api
+	@if [ ! -f "vendor/dify/docker/docker-compose.yaml" ]; then \
+		echo "Dify vendor not found. Run 'make init' first."; \
+		exit 1; \
+	fi
+	@docker compose -f vendor/dify/docker/docker-compose.yaml -p dify logs -f api
 
 logs-backend: ## 查看后端服务日志
 	docker compose -f $(COMPOSE_FILE) logs -f backend
@@ -146,7 +150,11 @@ shell-ollama: ## 进入 Ollama 容器
 	docker compose -f $(COMPOSE_FILE) exec fa-ollama /bin/sh
 
 shell-api: ## 进入 Dify API 容器
-	docker compose -f $(COMPOSE_FILE) exec api /bin/sh
+	@if [ ! -f "vendor/dify/docker/docker-compose.yaml" ]; then \
+		echo "Dify vendor not found. Run 'make init' first."; \
+		exit 1; \
+	fi
+	@docker compose -f vendor/dify/docker/docker-compose.yaml -p dify exec api /bin/sh
 
 shell-backend: ## 进入后端服务容器
 	docker compose -f $(COMPOSE_FILE) exec backend /bin/sh

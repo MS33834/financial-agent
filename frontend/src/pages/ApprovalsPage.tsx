@@ -4,37 +4,45 @@ import NavBar from '../components/NavBar.tsx'
 import Loading from '../components/ui/Loading.tsx'
 import EmptyState from '../components/ui/EmptyState.tsx'
 import { getErrorMessage } from '../utils/errors.ts'
-import type { Approval } from '../types/approval'
+import type { PendingApproval } from '../types/approval'
+import type { DataResponse, PaginatedResponse, Report } from '../types/report'
 
-const statusMap: Record<string, string> = {
-  pending: '待审批',
-  approved: '已通过',
-  rejected: '已驳回',
+function toPendingApproval(report: Report): PendingApproval {
+  return {
+    id: report.id,
+    report_id: report.id,
+    report_title: report.title,
+    status: 'reviewing',
+    created_at: report.created_at,
+  }
 }
 
 export default function ApprovalsPage() {
-  const [approvals, setApprovals] = useState<Approval[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [comments, setComments] = useState<Record<string, string>>({})
   const [acting, setActing] = useState<Record<string, boolean>>({})
 
-  const fetchApprovals = async () => {
+  const fetchPendingApprovals = async () => {
     setLoading(true)
     setError('')
     try {
-      const response = await api.get('/approvals?report_id=')
-      const payload = response.data.data
-      setApprovals(Array.isArray(payload) ? payload : payload?.items || [])
+      const response = await api.get<DataResponse<PaginatedResponse<Report>>>('/reports', {
+        params: { status: 'reviewing' },
+      })
+      const payload = response.data?.data
+      const reports = Array.isArray(payload) ? payload : payload?.items || []
+      setPendingApprovals(reports.map(toPendingApproval))
     } catch (err) {
-      setError(getErrorMessage(err, '加载审批记录失败'))
+      setError(getErrorMessage(err, '加载待审批报告失败'))
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchApprovals()
+    fetchPendingApprovals()
   }, [])
 
   const handleAction = async (reportId: string, action: 'approve' | 'reject') => {
@@ -45,9 +53,9 @@ export default function ApprovalsPage() {
         comments: comments[reportId] || undefined,
       })
       setComments((prev) => ({ ...prev, [reportId]: '' }))
-      await fetchApprovals()
+      await fetchPendingApprovals()
     } catch (err) {
-      setError(getErrorMessage(err, '操作失败'))
+      setError(getErrorMessage(err, '审批操作失败'))
     } finally {
       setActing((prev) => ({ ...prev, [reportId]: false }))
     }
@@ -59,7 +67,7 @@ export default function ApprovalsPage() {
         <h1>人工审批</h1>
         <div className="actions">
           <NavBar />
-          <button className="secondary" onClick={fetchApprovals}>
+          <button className="secondary" onClick={fetchPendingApprovals}>
             刷新
           </button>
         </div>
@@ -72,9 +80,9 @@ export default function ApprovalsPage() {
       )}
 
       {loading ? (
-        <Loading text="加载审批记录中..." />
-      ) : approvals.length === 0 ? (
-        <EmptyState title="暂无审批记录" description="当有报告需要审批时，将显示在这里。" />
+        <Loading text="加载待审批报告中..." />
+      ) : pendingApprovals.length === 0 ? (
+        <EmptyState title="暂无待审批报告" description="当有报告进入待审批状态时，将显示在这里。" />
       ) : (
         <div className="table-wrapper">
           <table>
@@ -82,17 +90,17 @@ export default function ApprovalsPage() {
               <tr>
                 <th>报告</th>
                 <th>状态</th>
-                <th>审批人</th>
+                <th>提交时间</th>
                 <th>备注</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              {approvals.map((approval) => (
+              {pendingApprovals.map((approval) => (
                 <tr key={approval.id}>
                   <td>{approval.report_title}</td>
-                  <td>{statusMap[approval.status] || approval.status}</td>
-                  <td>{approval.reviewer_name || '-'}</td>
+                  <td>待审批</td>
+                  <td>{new Date(approval.created_at).toLocaleString()}</td>
                   <td>
                     <input
                       value={comments[approval.report_id] || ''}
@@ -103,30 +111,26 @@ export default function ApprovalsPage() {
                         }))
                       }
                       placeholder="审批备注（可选）"
-                      disabled={acting[approval.report_id] || approval.status !== 'pending'}
+                      disabled={acting[approval.report_id]}
                       className="full-width"
                     />
                   </td>
                   <td>
-                    {approval.status === 'pending' ? (
-                      <div className="action-group">
-                        <button
-                          onClick={() => handleAction(approval.report_id, 'approve')}
-                          disabled={acting[approval.report_id]}
-                        >
-                          通过
-                        </button>
-                        <button
-                          className="secondary"
-                          onClick={() => handleAction(approval.report_id, 'reject')}
-                          disabled={acting[approval.report_id]}
-                        >
-                          驳回
-                        </button>
-                      </div>
-                    ) : (
-                      '-'
-                    )}
+                    <div className="action-group">
+                      <button
+                        onClick={() => handleAction(approval.report_id, 'approve')}
+                        disabled={acting[approval.report_id]}
+                      >
+                        通过
+                      </button>
+                      <button
+                        className="secondary"
+                        onClick={() => handleAction(approval.report_id, 'reject')}
+                        disabled={acting[approval.report_id]}
+                      >
+                        驳回
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

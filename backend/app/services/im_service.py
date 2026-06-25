@@ -1,17 +1,17 @@
 """IM 机器人业务服务.
 
-处理解析后的命令，调用后端业务能力，返回格式化文本。
-MVP 阶段通过 HTTP Client 调用本机 API；后续可改为直接调用 service 层。
+处理解析后的命令，直接调用后端 service 层，返回格式化文本。
+不再通过 TestClient/HTTP 调用内部 API，避免生产环境实例化 ASGI 应用。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.core.abac import ABACEngine
+from app.core.roles import Role
 from app.im.commands import (
     BotCommand,
     format_approval_result,
@@ -20,7 +20,10 @@ from app.im.commands import (
 )
 from app.models.access_policy import AccessPolicy
 from app.models.user import User
-from app.services.report_service import get_report
+from app.schemas.report import ReportCreate
+from app.services.approval_service import ApprovalError, record_approval
+from app.services.query_service import QueryService
+from app.services.report_service import create_report_task, get_report, list_reports
 
 # 每个 IM 用户最近查询的待审报告 ID 列表，支持 /approve 序号 快速审批
 _pending_reports: dict[str, list[str]] = {}
@@ -32,55 +35,22 @@ class IMServiceError(Exception):
     pass
 
 
-def _call_api(method: str, path: str, token: str, json: dict[str, Any] | None = None) -> dict[str, Any]:
-    """内部调用后端 API.
+def _format_service_error(exc: Exception) -> str:
+    """将 service 层异常转换为可操作的提示文本.
 
-    使用 TestClient 避免网络开销，实际生产环境应使用 httpx + 内网地址。
-    为避免循环导入，在函数内部延迟导入 app.main.app。
-    """
-    from app.main import app
-
-    headers = {"Authorization": f"Bearer {token}"}
-    with TestClient(app) as client:
-        if method == "GET":
-            response = client.get(path, headers=headers)
-        elif method == "POST":
-            response = client.post(path, headers=headers, json=json)
-        else:
-            raise IMServiceError(f"Unsupported method: {method}")
-
-    if response.status_code >= 400:
-        detail = "服务内部错误"
-        try:
-            payload = response.json()
-            detail = payload.get("message") or payload.get("detail") or detail
-        except Exception:  # noqa: BLE001
-            pass
-        raise IMServiceError(f"[{response.status_code}] {detail}")
-    response_payload: dict[str, Any] = response.json()
-    data: dict[str, Any] = response_payload.get("data") or {}
-    return data
-
-
-def _format_api_error(exc: IMServiceError) -> str:
-    """将 API 调用异常转换为可操作的提示文本.
-
-    根据状态码与常见业务错误给出针对性建议，实现简单的错误自省。
-    避免将原始响应文本直接暴露给 IM 平台用户。
+    根据常见业务错误给出针对性建议，避免将原始响应文本直接暴露给 IM 平台用户。
     """
     text = str(exc)
-    if "[403]" in text or "权限" in text:
+    if "权限" in text or "无权" in text:
         return "操作失败：当前用户权限不足，请联系管理员开通审批或查询权限。"
-    if "[404]" in text or "不存在" in text:
+    if "不存在" in text or "未找到" in text:
         return "操作失败：未找到指定资源，请检查 report_id 是否正确。"
-    if "仅 reviewing 状态的报告可执行审核" in text:
+    if "仅 reviewing 状态的报告可执行审核" in text or "不处于待审核状态" in text:
         return "操作失败：该报告不处于待审核状态，无需审批。可通过 /pending 查看待审报告。"
     if "无效的审核动作" in text:
         return "操作失败：审核动作仅支持 approve（通过）、reject（驳回）、modify（退回修改）。"
-    if "[400]" in text:
-        return "操作失败：请求参数有误，请检查命令格式。"
-    if "[500]" in text:
-        return "操作失败：服务暂时不可用，请稍后重试。"
+    if "安全校验" in text:
+        return f"操作失败：{text}"
     return "操作失败：服务处理异常，请稍后重试或联系管理员。"
 
 
@@ -164,7 +134,7 @@ def handle_command(command: BotCommand, token: str, db: Session, user: User) -> 
 
     Args:
         command: 解析后的命令。
-        token: 当前用户的 JWT Token。
+        token: 当前用户的 JWT Token（保留参数，当前实现已不再使用）。
         db: 数据库会话。
         user: 当前 IM 用户对应的系统用户。
 
@@ -172,31 +142,38 @@ def handle_command(command: BotCommand, token: str, db: Session, user: User) -> 
         回复文本。
     """
     try:
-        return _handle_command(command, token, db, user)
+        return _handle_command(command, db, user)
     except IMServiceError as exc:
-        return _format_api_error(exc)
+        return _format_service_error(exc)
 
 
-def _handle_command(command: BotCommand, token: str, db: Session, user: User) -> str:
+def _handle_command(command: BotCommand, db: Session, user: User) -> str:
     """实际命令处理逻辑."""
     if command.name == "query":
         question = " ".join(command.args)
         if not question:
             return "请输入问题，例如：/query 2025年Q2营业收入"
-        result = _call_api("POST", "/api/v1/queries/nl2sql", token, {"question": question})
+        service = QueryService()
+        result = service.nl2sql(question, str(user.tenant_id), db, user=user)
         return format_nl2sql_result(result)
 
     if command.name == "report":
         report_type = command.args[0] if command.args else "profit"
         title = command.kwargs.get("title") or f"IM 创建报告 {report_type}"
         parameters = {k: v for k, v in command.kwargs.items() if k != "title"}
-        result = _call_api(
-            "POST",
-            "/api/v1/reports",
-            token,
-            {"title": title, "report_type": report_type, "parameters": parameters},
+        data = ReportCreate(
+            title=title,
+            report_type=report_type,  # type: ignore[arg-type]
+            parameters=parameters,
         )
-        return format_report_result(result)
+        report = create_report_task(db=db, data=data, user=user)
+        return format_report_result(
+            {
+                "report_id": report.id,
+                "title": report.title,
+                "status": report.status,
+            }
+        )
 
     if command.name in {"approve", "reject", "modify"}:
         # /approve 命令兼容 /reject、/modify 快捷语法
@@ -205,6 +182,9 @@ def _handle_command(command: BotCommand, token: str, db: Session, user: User) ->
             return error
         assert report_id is not None
 
+        if user.role not in {Role.ADMIN, Role.AUDITOR}:
+            return "操作失败：当前用户权限不足，请联系管理员开通审批权限。"
+
         action = command.name if command.name != "approve" else command.kwargs.get("action", "approve")
         comments = command.kwargs.get("comment") or command.kwargs.get("comments")
 
@@ -212,29 +192,51 @@ def _handle_command(command: BotCommand, token: str, db: Session, user: User) ->
         if not allowed:
             return f"操作失败：{abac_error}"
 
-        result = _call_api(
-            "POST",
-            f"/api/v1/approvals/{report_id}/action",
-            token,
-            {"action": action, "comments": comments},
+        report = get_report(db, report_id, user.tenant_id)
+        if report is None:
+            return "操作失败：未找到指定报告，请检查 report_id 是否正确。"
+
+        try:
+            approval = record_approval(
+                db=db,
+                report=report,
+                action=action,
+                comments=comments,
+                user=user,
+            )
+        except ApprovalError as exc:
+            raise IMServiceError(str(exc)) from exc
+
+        return format_approval_result(
+            {
+                "success": True,
+                "data": {
+                    "report_id": approval.report_id,
+                    "action": approval.action,
+                },
+            }
         )
-        return format_approval_result({"success": True, "data": result})
 
     if command.name == "pending":
-        result = _call_api("GET", "/api/v1/reports?status=reviewing&page_size=10", token)
-        items = result.get("items", [])
+        items, _total = list_reports(
+            db=db,
+            tenant_id=user.tenant_id,
+            page=1,
+            page_size=10,
+            status="reviewing",
+        )
         if not items:
             _pending_reports.pop(str(user.id), None)
             return "当前没有待审核的报告。"
 
-        report_ids = [str(item.get("id")) for item in items if item.get("id")]
+        report_ids = [str(item.id) for item in items]
         _pending_reports[str(user.id)] = report_ids
 
         lines = ["待审核报告（可用 /approve 序号 快速审批，如 /approve 1）："]
         for idx, item in enumerate(items, 1):
             lines.append(
-                f"{idx}. {item.get('title')} | 类型：{item.get('report_type')} | "
-                f"ID：{str(item.get('id'))[:8]}"
+                f"{idx}. {item.title} | 类型：{item.report_type} | "
+                f"ID：{str(item.id)[:8]}"
             )
         return "\n".join(lines)
 

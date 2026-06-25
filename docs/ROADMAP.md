@@ -93,24 +93,24 @@
 
 | ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
 |----|------|------|------|-----------------|----------|
-| R1 | 配置 | 修复 `CORS_ORIGINS` 导致后端启动失败 | 待修复 | `.env.example` 中逗号分隔字符串无法被 Pydantic `list[str]` 解析；建议改为 JSON 数组或在 `config.py` 增加 comma-split validator | `.env.example`, `backend/app/config.py` |
-| R2 | 前端 | 重写审批页面，打通审批 UI 闭环 | 待修复 | 当前页面拉取的是审批历史记录，且字段与后端不匹配；应改为拉取 `GET /reports?status=reviewing` 列表并执行审批操作 | `frontend/src/pages/ApprovalsPage.tsx`, `frontend/src/types/approval.ts` |
+| R1 | 配置 | 修复 `CORS_ORIGINS` 导致后端启动失败 | 已完成 | `config.py` 中将字段改为 `str`，新增 `cors_origins_list` 属性支持逗号分隔与 JSON 数组两种写法；`main.py` 改用属性读取 | `.env.example`, `backend/app/config.py`, `backend/app/main.py` |
+| R2 | 前端 | 重写审批页面，打通审批 UI 闭环 | 已完成 | `ApprovalsPage` 改为拉取 `GET /reports?status=reviewing` 列表；类型 `Approval` 改为 `PendingApproval` | `frontend/src/pages/ApprovalsPage.tsx`, `frontend/src/types/approval.ts`, `frontend/src/types/report.ts` |
 
 #### P1（功能有明显缺陷）
 
 | ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
 |----|------|------|------|-----------------|----------|
-| R3 | 后端 | 修复 Agent 文档问答状态过滤错误 | 待修复 | `document_qa_tool` 使用 `status.in_({"completed", ...})`，但 Document 状态无 `completed`，应为 `success` | `backend/app/agent_runtime/tools.py` |
-| R4 | DevOps | 修复 Makefile 中指向 Dify 服务的错误命令 | 待修复 | `logs-api` / `shell-api` 在 FA compose 中找不到 `api` 服务，应指定 Dify compose 文件路径 | `Makefile` |
-| R5 | 前端 | 报告导出按钮按状态禁用 | 待修复 | 后端仅允许 `reviewing` / `approved` 状态导出，前端应在其他状态禁用导出按钮 | `frontend/src/components/ReportDetail.tsx` |
-| R6 | 文档 | 持续同步 ROADMAP 与实际进度 | 进行中 | 本次已将 H2/H3 标记为完成；后续修复完 R1~R5 后需同步更新本表 | `docs/ROADMAP.md` |
+| R3 | 后端 | 修复 Agent 文档问答状态过滤错误 | 已完成 | `document_qa_tool` 将状态过滤从 `completed` 修正为 `success`；同步修正测试数据 | `backend/app/agent_runtime/tools.py`, `backend/tests/test_agent_runtime.py` |
+| R4 | DevOps | 修复 Makefile 中指向 Dify 服务的错误命令 | 已完成 | `logs-api` / `shell-api` 改为使用 `vendor/dify/docker/docker-compose.yaml` 并指定 `-p dify` | `Makefile` |
+| R5 | 前端 | 报告导出按钮按状态禁用 | 已完成 | `ReportDetail` 增加 `canExport` 判断，非 `reviewing` / `approved` 状态禁用导出按钮 | `frontend/src/components/ReportDetail.tsx` |
+| R6 | 文档 | 持续同步 ROADMAP 与实际进度 | 已完成 | 本批次修复完成后同步更新 R1~R8 状态 | `docs/ROADMAP.md` |
 
 #### P2（架构/生产隐患）
 
 | ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
 |----|------|------|------|-----------------|----------|
-| R7 | 配置 | 修正 Dify 控制台地址端口 | 待修复 | `.env.example` 中 `CONSOLE_WEB_URL=http://localhost:3000` 与 FA 前端端口冲突，且与 README 不一致，应改为 `8080` | `.env.example` |
-| R8 | 后端 | IMService 改为直接调用 service 层 | 待重构 | 当前用 `TestClient` 调内部 API，生产环境不推荐，应改为直接调用 `report_service` / `approval_service` / `query_service` | `backend/app/services/im_service.py` |
+| R7 | 配置 | 修正 Dify 控制台地址端口 | 已完成 | `.env.example` 中 `CONSOLE_WEB_URL` 从 `3000` 改为 `8080` | `.env.example` |
+| R8 | 后端 | IMService 改为直接调用 service 层 | 已完成 | 移除 `TestClient`；改为直接调用 `QueryService`、`create_report_task`、`list_reports`、`record_approval`；保留 ADMIN/AUDITOR 角色校验 | `backend/app/services/im_service.py` |
 
 ---
 
@@ -149,3 +149,4 @@
 |------|--------|----------|
 | 2026-06-25 | AI Assistant | 初始创建，包含全面 review 结果与完善计划 |
 | 2026-06-25 | AI Assistant | 新增本次 MVP 闭环 review 任务（R1~R8），并将 H2/H3 标记为已完成 |
+| 2026-06-25 | AI Assistant | 完成 R1~R8 全部修复：CORS、审批页面、document_qa 过滤、Makefile、导出按钮、Dify 端口、IMService 重构 |
