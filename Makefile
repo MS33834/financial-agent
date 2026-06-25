@@ -37,12 +37,18 @@ init: ## 初始化项目：克隆 Dify vendor、创建 .env
 	else \
 		echo "==> .env already exists."; \
 	fi
-	@echo "==> Syncing .env to vendor/dify/docker/.env for Dify include..."
-	@cp .env vendor/dify/docker/.env
+	@if [ -d "vendor/dify/docker" ]; then \
+		echo "==> Syncing .env to vendor/dify/docker/.env for Dify include..."; \
+		cp .env vendor/dify/docker/.env; \
+	else \
+		echo "==> vendor/dify not found; run 'make init' to clone Dify if needed."; \
+	fi
 
 validate: ## 校验 docker-compose.yml 配置（无需启动 Docker）
 	@echo "==> Validating Docker Compose configuration..."
-	@cp -f .env vendor/dify/docker/.env
+	@if [ -d "vendor/dify/docker" ]; then \
+		cp -f .env vendor/dify/docker/.env; \
+	fi
 	@docker compose -f $(COMPOSE_FILE) config > /dev/null && echo "Compose configuration is valid."
 
 validate-prod: ## 校验生产环境 Compose 配置（无需启动 Docker）

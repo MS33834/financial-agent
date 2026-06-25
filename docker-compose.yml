@@ -3,6 +3,9 @@
 # 默认启动：PostgreSQL + Ollama + 后端 API + 前端
 # 说明：
 #   - 默认无需 Redis / MinIO，文档/报告/任务全部本地执行
+#   - Dify（开源流程编排）按需单独启动：
+#       make init
+#       docker compose -f vendor/dify/docker/docker-compose.yaml up -d
 #   - 需要异步任务时设置 TASK_BACKEND=celery 并启用 redis/worker profile：
 #       docker compose --profile celery up -d
 #   - 需要分布式对象存储时设置 STORAGE_BACKEND=minio 并启用 minio profile：
