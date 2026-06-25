@@ -1,6 +1,6 @@
 """IM 用户映射相关 Schema."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,7 +27,7 @@ class IMUserMappingResponse(BaseModel):
     updated_at: str | None = Field(default=None, description="更新时间")
 
 
-def serialize_im_user_mapping(mapping) -> dict:  # type: ignore[no-untyped-def]
+def serialize_im_user_mapping(mapping: Any) -> dict[str, Any]:
     """将 IMUserMapping ORM 对象序列化为响应字典."""
     return {
         "id": mapping.id,

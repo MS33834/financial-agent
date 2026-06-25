@@ -37,7 +37,7 @@ describe('AuthContext', () => {
       data: { data: { access_token: 'fake-token' } },
     })
     mockedAxios.get = vi.fn().mockResolvedValue({
-      data: { data: { role: 'admin' } },
+      data: { data: { role: 'admin', username: 'admin' } },
     })
 
     render(

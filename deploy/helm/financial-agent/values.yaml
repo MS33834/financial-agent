@@ -84,8 +84,9 @@ backend:
 # ==========================
 # Celery Worker 配置
 # ==========================
+# 默认 task_backend=sync 时不需要 Worker，仅在 task_backend=celery 时启用
 worker:
-  enabled: true
+  enabled: false
   replicaCount: 2
 
   image:
@@ -178,17 +179,20 @@ ingress:
         - financial-agent.example.com
 
 # ==========================
-# 外部依赖配置（必填）
+# 外部依赖配置
 # ==========================
 externalSecrets:
   # 是否使用已存在的 Secret；false 时 Chart 会创建空 Secret 占位
   existingSecretName: ""
 
 # 敏感配置 key 列表（生产环境请通过 externalSecrets 注入）
+# DATABASE_URL 与 SECRET_KEY 必填；其余仅在启用对应扩展时需要
 secrets:
   DATABASE_URL: ""
-  REDIS_URL: ""
   SECRET_KEY: ""
+  # 仅 TASK_BACKEND=celery 时需要
+  REDIS_URL: ""
+  # 仅 STORAGE_BACKEND=minio 时需要
   MINIO_ENDPOINT: ""
   MINIO_ACCESS_KEY: ""
   MINIO_SECRET_KEY: ""
@@ -197,6 +201,10 @@ secrets:
 
 # 非敏感应用配置
 config:
+  # 默认本地存储与同步任务，无需 Redis / MinIO
+  STORAGE_BACKEND: local
+  STORAGE_LOCAL_ROOT: /app/data/storage
+  TASK_BACKEND: sync
   MINIO_BUCKET: financial-agent
   OLLAMA_HOST: ""
   OLLAMA_MODEL: ""

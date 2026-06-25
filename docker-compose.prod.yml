@@ -6,6 +6,11 @@
 #
 # 本文件在 docker-compose.yml 基础上增加资源限制与副本策略，
 # 适用于单机生产或 Docker Swarm 轻量部署。
+#
+# 默认仅启动核心服务（PostgreSQL + Ollama + backend + frontend），
+# 如需 MinIO / Redis / Worker，请额外加上对应 profile：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --profile minio --profile celery up -d
 # ==================================================================
 
 name: financial-agent

@@ -2,7 +2,8 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> 一个基于 Dify + LangGraph + Ollama + Mineru + Vanna 的企业级财务智能体 MVP。
+> 一个基于 Dify + LangGraph + Ollama + Vanna 的企业级财务智能体 MVP。
+> PDF 解析默认使用本地 pdfplumber，Mineru 作为可选增强；存储与任务执行默认本地，MinIO / Celery 作为可选扩展。
 
 ---
 
@@ -79,8 +80,10 @@ make status
 | Dify API | http://localhost:5001 | 后端 API |
 | Dify Nginx | http://localhost:8080 | 统一入口（API + Web） |
 | Ollama | http://localhost:11434 | 本地大模型服务 |
-| MinIO 控制台 | http://localhost:9001 | 对象存储管理 |
-| MinIO API | http://localhost:9000 | S3 兼容 API |
+| 财务智能体后端 | http://localhost:8000 | 业务后端 API |
+| 财务智能体前端 | http://localhost:3000 | React Web 前端 |
+| MinIO 控制台 | http://localhost:9001 | 对象存储管理（可选，`STORAGE_BACKEND=minio` 时启用） |
+| MinIO API | http://localhost:9000 | S3 兼容 API（可选） |
 
 ### 3.4 拉取大模型
 
@@ -90,13 +93,35 @@ make pull-model
 
 默认拉取 `qwen2.5:7b`。若硬件资源紧张，修改 `.env` 中的 `OLLAMA_MODEL` 为 `qwen2.5:3b` 后重新执行。
 
-### 3.5 初始化 MinIO Bucket
+### 3.5 初始化 MinIO Bucket（可选）
+
+仅当 `.env` 中 `STORAGE_BACKEND=minio` 时才需要执行：
 
 ```bash
+docker compose --profile minio up -d
 make create-bucket
 ```
 
-### 3.6 停止服务
+默认 `STORAGE_BACKEND=local` 时无需此步骤，文件直接存储在本地卷 `backend_storage`。
+
+### 3.6 启用 Celery 异步任务（可选）
+
+默认 `TASK_BACKEND=sync` 时任务同步执行。如需异步，修改 `.env`：
+
+```bash
+TASK_BACKEND=celery
+REDIS_URL=redis://:difyai123456@redis:6379/2
+CELERY_BROKER_URL=redis://:difyai123456@redis:6379/2
+CELERY_RESULT_BACKEND=redis://:difyai123456@redis:6379/2
+```
+
+然后启动：
+
+```bash
+docker compose --profile celery up -d
+```
+
+### 3.7 停止服务
 
 ```bash
 make down
@@ -214,11 +239,16 @@ make shell-ollama   # Ollama
 # 1. 初始化配置
 cp .env.example .env
 # 按需修改 SECRET_KEY、CORS_ORIGINS、数据库连接等
+# 默认 STORAGE_BACKEND=local / TASK_BACKEND=sync，无需 Redis / MinIO
 
-# 2. 生产模式启动
+# 2. 生产模式启动（仅核心服务）
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-# 3. 查看状态
+# 3. 如需启用 MinIO / Celery，加上对应 profile
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#   --profile minio --profile celery up -d
+
+# 4. 查看状态
 make status
 ```
 

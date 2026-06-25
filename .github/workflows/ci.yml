@@ -45,13 +45,10 @@ jobs:
           APP_ENV: testing
           DATABASE_URL: sqlite:///./test.db
           SECRET_KEY: ci-test-secret-key-32-char-long
-          REDIS_URL: redis://localhost:6379/15
-          MINIO_ENDPOINT: localhost:9000
-          MINIO_ACCESS_KEY: ci
-          MINIO_SECRET_KEY: ci
+          STORAGE_BACKEND: local
+          STORAGE_LOCAL_ROOT: ./test_data/storage
+          TASK_BACKEND: sync
           RATE_LIMIT_ENABLED: false
-          CELERY_BROKER_URL: redis://localhost:6379/15
-          CELERY_RESULT_BACKEND: redis://localhost:6379/15
         run: python -m pytest -v --cov=app --cov-report=term-missing --cov-report=xml
 
       - name: Upload coverage report

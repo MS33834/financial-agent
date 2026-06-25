@@ -1,6 +1,8 @@
 # ==================================================================
 # 集成测试依赖服务
-# 仅启动 PostgreSQL + Redis + MinIO，在宿主机运行后端测试。
+# 集成测试依赖服务：PostgreSQL + Redis + MinIO。
+# 本地模式（STORAGE_BACKEND=local / TASK_BACKEND=sync）不需要 Redis / MinIO，
+# 本文件主要用于测试 MinIO / Celery 扩展路径。
 # 用法：
 #   cd tests/integration
 #   docker compose -f docker-compose.dependencies.yml up -d

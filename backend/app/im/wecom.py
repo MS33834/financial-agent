@@ -17,7 +17,7 @@ import time
 from typing import Any
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from defusedxml import ElementTree as ET
+from defusedxml import ElementTree
 
 from app.config import get_settings
 from app.im.base import BaseIMBot, IMBotRegistry, IMMessage, send_webhook_with_retry
@@ -90,10 +90,10 @@ class WeComBot(BaseIMBot):
     def extract_encrypt(self, raw_body: bytes) -> str:
         """从 XML 原始请求体中提取 Encrypt 字段."""
         try:
-            root = ET.fromstring(raw_body.decode("utf-8"))
+            root = ElementTree.fromstring(raw_body.decode("utf-8"))
             encrypt_elem = root.find("Encrypt")
             return encrypt_elem.text or "" if encrypt_elem is not None else ""
-        except ET.ParseError:
+        except ElementTree.ParseError:
             return ""
 
     def decrypt(self, encrypt_str: str) -> dict[str, Any]:
@@ -151,8 +151,8 @@ class WeComBot(BaseIMBot):
         """
         xml_str = payload.get("xml", "")
         try:
-            root = ET.fromstring(xml_str)
-        except ET.ParseError:
+            root = ElementTree.fromstring(xml_str)
+        except ElementTree.ParseError:
             return IMMessage(raw_payload=payload)
 
         msg_type = self._xml_text(root, "MsgType")
@@ -165,7 +165,7 @@ class WeComBot(BaseIMBot):
             raw_payload=payload,
         )
 
-    def _xml_text(self, root: ET.Element, tag: str) -> str:
+    def _xml_text(self, root: ElementTree.Element, tag: str) -> str:
         """安全获取 XML 子元素文本."""
         elem = root.find(tag)
         return elem.text or "" if elem is not None else ""

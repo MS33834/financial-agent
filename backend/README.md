@@ -14,8 +14,10 @@ pip install -e ".[dev]"
 ### 2. 配置环境变量
 
 ```bash
-cp ../.env.example .env
-# 修改 DATABASE_URL、REDIS_URL、SECRET_KEY 等
+cp .env.example .env
+# 修改 DATABASE_URL、SECRET_KEY 等
+# 默认 STORAGE_BACKEND=local / TASK_BACKEND=sync，无需 Redis / MinIO
+# 需要分布式存储或异步任务时再配置 MinIO / Redis
 ```
 
 ### 3. 运行数据库迁移

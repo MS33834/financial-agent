@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import os
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from io import BytesIO
@@ -71,15 +70,15 @@ class LocalStorageClient(BaseStorageClient):
         Args:
             key: 对象 key，作为相对路径。
             data: 文件内容。
-            content_type: MIME 类型（本地存储忽略，仅记录日志）。
-            metadata: 自定义元数据（本地存储忽略）。
+            content_type: MIME 类型（本地存储仅记录日志）。
+            metadata: 自定义元数据（本地存储仅记录日志）。
 
         Returns:
             文件本地路径。
         """
         # 防止路径穿越：key 不允许包含 ..
         if ".." in key.split("/"):
-            raise StorageClientError("对象 key 不允许包含 '..'")
+            raise StorageClientError("对象 key 不允许包含 '..")
 
         file_path = self.root / key
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +86,15 @@ class LocalStorageClient(BaseStorageClient):
             file_path.write_bytes(data)
         except OSError as exc:
             raise StorageClientError(f"本地存储写入失败: {exc}") from exc
+
+        logger.info(
+            "storage.local.upload",
+            key=key,
+            path=str(file_path),
+            size=len(data),
+            content_type=content_type,
+            metadata=metadata,
+        )
         return str(file_path)
 
     def download_bytes(self, key: str) -> bytes:

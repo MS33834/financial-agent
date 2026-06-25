@@ -1,15 +1,21 @@
 # ==================================================================
 # 企业级财务智能体 - MVP Docker Compose
-# 包含：PostgreSQL + Redis + MinIO + Ollama + 后端 API + 前端
-# 说明：Dify 流程编排服务请使用 vendor/dify/docker/docker-compose.yaml
-#       单独启动；本文件默认仅启动财务智能体核心链路。
+# 默认启动：PostgreSQL + Ollama + 后端 API + 前端
+# 说明：
+#   - 默认无需 Redis / MinIO，文档/报告/任务全部本地执行
+#   - 需要异步任务时设置 TASK_BACKEND=celery 并启用 redis/worker profile：
+#       docker compose --profile celery up -d
+#   - 需要分布式对象存储时设置 STORAGE_BACKEND=minio 并启用 minio profile：
+#       docker compose --profile minio up -d
+#   - 可同时启用两者：
+#       docker compose --profile celery --profile minio up -d
 # ==================================================================
 
 name: financial-agent
 
 services:
   # ----------------------------------------------------------------
-  # 数据库：PostgreSQL
+  # 数据库：PostgreSQL（必需）
   # ----------------------------------------------------------------
   db_postgres:
     image: postgres:16-alpine
@@ -42,11 +48,13 @@ services:
       retries: 30
 
   # ----------------------------------------------------------------
-  # 缓存 / 消息队列：Redis
+  # 缓存 / 消息队列：Redis（可选，仅 TASK_BACKEND=celery 时需要）
   # ----------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: financial-agent-redis
+    profiles:
+      - celery
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-difyai123456}
     volumes:
@@ -94,11 +102,13 @@ services:
           memory: 2G
 
   # ----------------------------------------------------------------
-  # 对象存储：MinIO（存储原始 PDF、解析结果、生成报告）
+  # 对象存储：MinIO（可选，仅 STORAGE_BACKEND=minio 时需要）
   # ----------------------------------------------------------------
   fa-minio:
     image: minio/minio:RELEASE.2024-06-13T22-53-53Z
     container_name: financial-agent-minio
+    profiles:
+      - minio
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
@@ -130,11 +140,19 @@ services:
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
       SECRET_KEY: ${SECRET_KEY}
-      MINIO_ENDPOINT: fa-minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      # 默认本地存储与同步任务，无需 Redis / MinIO
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/app/data/storage}
+      TASK_BACKEND: ${TASK_BACKEND:-sync}
+      # Redis 仅在 TASK_BACKEND=celery 时需要
+      REDIS_URL: ${REDIS_URL:-}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-}
+      # MinIO 仅在 STORAGE_BACKEND=minio 时需要
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-fa-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin123}}
       MINIO_BUCKET: ${MINIO_BUCKET:-financial-agent}
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
@@ -147,18 +165,20 @@ services:
       MINERU_API_URL: ${MINERU_API_URL:-}
       MINERU_TIMEOUT: ${MINERU_TIMEOUT:-120}
       DIFY_TOOL_API_KEY: ${DIFY_TOOL_API_KEY:-}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-120}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
     ports:
       - "8000:8000"
     depends_on:
       db_postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      fa-minio:
-        condition: service_started
     restart: unless-stopped
     networks:
       - default
+    volumes:
+      # 本地存储持久化
+      - backend_storage:${STORAGE_LOCAL_ROOT:-/app/data/storage}
     healthcheck:
       test: ["CMD", "python", "scripts/healthcheck.py"]
       interval: 15s
@@ -167,23 +187,30 @@ services:
       start_period: 30s
 
   # ----------------------------------------------------------------
-  # 财务智能体后端 Celery Worker
+  # 财务智能体后端 Celery Worker（可选，仅 TASK_BACKEND=celery 时需要）
   # ----------------------------------------------------------------
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: financial-agent-worker
+    profiles:
+      - celery
     command: ["python", "scripts/worker.py"]
     environment:
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
       SECRET_KEY: ${SECRET_KEY}
-      MINIO_ENDPOINT: fa-minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/app/data/storage}
+      TASK_BACKEND: ${TASK_BACKEND:-celery}
+      REDIS_URL: ${REDIS_URL:-}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-fa-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin123}}
       MINIO_BUCKET: ${MINIO_BUCKET:-financial-agent}
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://fa-ollama:11434}
@@ -200,11 +227,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      fa-minio:
-        condition: service_started
     restart: unless-stopped
     networks:
       - default
+    volumes:
+      - backend_storage:${STORAGE_LOCAL_ROOT:-/app/data/storage}
     healthcheck:
       test:
         [
@@ -248,3 +275,4 @@ volumes:
   minio_data:
   postgres_data:
   redis_data:
+  backend_storage:

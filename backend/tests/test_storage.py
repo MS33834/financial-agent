@@ -14,6 +14,7 @@ import pytest
 from app.storage import (
     BaseStorageClient,
     LocalStorageClient,
+    MinioStorageClient,
     StorageClientError,
     get_storage_client,
 )
@@ -51,7 +52,7 @@ class TestLocalStorageClient:
         assert (tmp_path / "a" / "b" / "c" / "d.txt").read_bytes() == b"deep"
 
     def test_download_bytes_returns_content(
-        self, storage: LocalStorageClient, tmp_path: Path
+        self, storage: LocalStorageClient
     ) -> None:
         """下载应返回写入的文件内容."""
         storage.upload_bytes(key="doc.txt", data=b"hello")
@@ -87,7 +88,7 @@ class TestMinioStorageClient:
     """MinioStorageClient（可选 MinIO 后端）测试."""
 
     @pytest.fixture
-    def storage(self) -> Generator[MagicMock, None, None]:
+    def storage(self) -> Generator[MinioStorageClient, None, None]:
         """创建带 mock MinIO 客户端的 MinioStorageClient."""
         with patch("app.storage.get_settings") as mock_settings:
             settings = MagicMock()
@@ -99,15 +100,13 @@ class TestMinioStorageClient:
             mock_settings.return_value = settings
 
             with patch("app.storage.MinioStorageClient.__init__", return_value=None):
-                from app.storage import MinioStorageClient
-
                 client = MinioStorageClient()
                 client.client = MagicMock()
                 client.bucket = "financial-agent"
                 client.public_url = "http://minio.example.com"
                 yield client
 
-    def test_upload_bytes_success(self, storage: MagicMock) -> None:
+    def test_upload_bytes_success(self, storage: MinioStorageClient) -> None:
         """上传字节数据成功并返回 public URL."""
         storage.client.bucket_exists.return_value = True
         url = storage.upload_bytes(
@@ -123,7 +122,7 @@ class TestMinioStorageClient:
         assert call_args.kwargs["content_type"] == "application/pdf"
         assert call_args.kwargs["metadata"] == {"tenant": "t1"}
 
-    def test_download_bytes_success(self, storage: MagicMock) -> None:
+    def test_download_bytes_success(self, storage: MinioStorageClient) -> None:
         """下载对象内容成功."""
         response = MagicMock()
         response.read.return_value = b"file-content"
