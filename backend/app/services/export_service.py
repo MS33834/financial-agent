@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.models.report import Report
 from app.models.user import User
 from app.services.audit_service import log_action
-from app.storage import StorageClient
+from app.storage import BaseStorageClient
 
 
 class ExportFormatError(Exception):
@@ -281,7 +281,7 @@ def _render_excel_registered(report: Report) -> bytes:
 def export_report(
     db: Session,
     report: Report,
-    storage: StorageClient,
+    storage: BaseStorageClient,
     user: User | None,
     fmt: str = "markdown",
 ) -> str:
@@ -290,7 +290,7 @@ def export_report(
     Args:
         db: 数据库会话。
         report: 已生成的报告。
-        storage: 对象存储客户端。
+        storage: 对象存储客户端（本地或 MinIO 均可）。
         user: 当前用户，用于审计日志。
         fmt: 导出格式，支持 markdown/json/pdf/xlsx。
 

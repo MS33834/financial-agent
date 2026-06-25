@@ -37,15 +37,27 @@ class Settings(BaseSettings):
     database_url: str = Field(description="数据库连接 URL")
     database_echo: bool = Field(default=False, description="是否打印 SQL")
 
-    # 缓存 / 队列
-    redis_url: str = Field(description="Redis 连接 URL")
+    # 缓存 / 队列（默认本地同步执行，无需 Redis；启用 Celery 时才需要）
+    redis_url: str = Field(default="", description="Redis 连接 URL（启用 Celery 时需要）")
     celery_broker_url: str | None = Field(default=None, description="Celery Broker URL")
     celery_result_backend: str | None = Field(default=None, description="Celery Result Backend")
 
+    # 任务执行后端：sync（默认，同步执行，无外部依赖）/ celery（异步，需 Redis）
+    task_backend: str = Field(
+        default="sync", description="任务执行后端: sync（本地同步）/ celery（异步）"
+    )
+
     # 对象存储
-    minio_endpoint: str = Field(description="MinIO 服务端点")
-    minio_access_key: str = Field(description="MinIO Access Key")
-    minio_secret_key: str = Field(description="MinIO Secret Key")
+    # 默认使用本地文件系统存储，MinIO 作为可选扩展
+    storage_backend: str = Field(
+        default="local", description="存储后端: local（本地文件系统）/ minio"
+    )
+    storage_local_root: str = Field(
+        default="./data/storage", description="本地存储根目录（storage_backend=local 时生效）"
+    )
+    minio_endpoint: str = Field(default="", description="MinIO 服务端点")
+    minio_access_key: str = Field(default="", description="MinIO Access Key")
+    minio_secret_key: str = Field(default="", description="MinIO Secret Key")
     minio_bucket: str = Field(default="financial-agent", description="MinIO Bucket")
     minio_public_url: str | None = Field(default=None, description="MinIO 公网访问地址")
 

@@ -12,8 +12,12 @@ from sqlalchemy.orm import Session, sessionmaker
 os.environ.setdefault("APP_ENV", "testing")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-32-char-long-xxx")
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
+# 默认本地执行，无需 Redis / MinIO 外部服务
+os.environ.setdefault("TASK_BACKEND", "sync")
+os.environ.setdefault("STORAGE_BACKEND", "local")
+os.environ.setdefault("STORAGE_LOCAL_ROOT", "./test_data/storage")
 os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
+# MinIO 配置保留供 MinioStorageClient 单元测试 mock 使用，默认不连接
 os.environ.setdefault("MINIO_ENDPOINT", "localhost:9000")
 os.environ.setdefault("MINIO_ACCESS_KEY", "test")
 os.environ.setdefault("MINIO_SECRET_KEY", "test")

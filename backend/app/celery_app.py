@@ -1,7 +1,12 @@
 """Celery 应用配置.
 
-MVP 阶段使用 Redis 作为 broker 与 result backend。
-测试环境可通过 CELERY_TASK_ALWAYS_EAGER=True 同步执行任务。
+默认 ``task_backend=sync`` 时使用 ``task_always_eager=True`` + 内存 broker，
+任务在当前进程同步执行，**无需部署 Redis**。
+
+配置 ``task_backend=celery`` 时切换为异步模式，使用 Redis 作为 broker 与 result backend，
+适合生产环境分布式部署。
+
+测试环境通过 ``CELERY_TASK_ALWAYS_EAGER=true`` 或 ``APP_ENV=testing`` 同步执行任务。
 """
 
 from contextlib import suppress
@@ -15,12 +20,19 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# 默认 sync 后端使用内存 broker，无需 Redis；celery 后端使用 Redis
+_broker_url = settings.celery_broker_url or settings.redis_url or "memory://"
+_result_backend = settings.celery_result_backend or settings.redis_url or "cache+memory://"
+
 celery_app = Celery(
     "financial_agent",
-    broker=settings.celery_broker_url or settings.redis_url,
-    backend=settings.celery_result_backend or settings.redis_url,
+    broker=_broker_url,
+    backend=_result_backend,
     include=["app.tasks.document_tasks", "app.tasks.report_tasks"],
 )
+
+# sync 后端或测试环境：任务同步执行，不连接 broker
+_task_always_eager = settings.task_backend.lower() == "sync" or settings.app_env == "testing"
 
 celery_app.conf.update(
     task_serializer="json",
@@ -31,8 +43,10 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=600,
     task_soft_time_limit=300,
-    # 测试环境可在 .env 中设置为 True，使任务同步执行
-    task_always_eager=settings.app_env == "testing",
+    # sync 后端或测试环境：任务在当前进程同步执行，无需 Redis
+    task_always_eager=_task_always_eager,
+    # eager 模式下任务异常直接抛出，便于调用方捕获
+    task_eager_propagates=True,
 )
 
 # 记录任务开始时间：task_id -> monotonic
