@@ -1,28 +1,24 @@
 # ==================================================================
 # 企业级财务智能体 - MVP Docker Compose
-# 默认启动：PostgreSQL + Ollama + 后端 API + 前端
+# 默认启动：Ollama + 后端 API + 前端（复用 Dify 的 PostgreSQL/Redis/MinIO）
 # 说明：
-#   - 默认无需 Redis / MinIO，文档/报告/任务全部本地执行
-#   - Dify（开源流程编排）按需单独启动：
-#       make init
-#       docker compose -f vendor/dify/docker/docker-compose.yaml up -d
-#   - 需要异步任务时设置 TASK_BACKEND=celery 并启用 redis/worker profile：
-#       docker compose --profile celery up -d
-#   - 需要分布式对象存储时设置 STORAGE_BACKEND=minio 并启用 minio profile：
-#       docker compose --profile minio up -d
-#   - 可同时启用两者：
-#       docker compose --profile celery --profile minio up -d
+#   - 默认与 Dify 一起使用，复用 Dify 的 db_postgres / redis / minio 服务
+#   - 如需独立运行（不启动 Dify），使用 docker compose --profile local-db up -d
+#   - 需要 Celery 异步任务时：docker compose --profile celery up -d
+#   - 默认无需单独 Redis / MinIO，文档/报告/任务本地执行
 # ==================================================================
 
 name: financial-agent
 
 services:
   # ----------------------------------------------------------------
-  # 数据库：PostgreSQL（必需）
+  # 数据库：PostgreSQL（可选，仅不启动 Dify 时需要）
   # ----------------------------------------------------------------
   db_postgres:
     image: postgres:16-alpine
     container_name: financial-agent-postgres
+    profiles:
+      - local-db
     environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-difyai123456}
@@ -64,10 +60,11 @@ services:
       - redis_data:/data
     command: redis-server --requirepass ${REDIS_PASSWORD:-difyai123456}
     ports:
-      - "6379:6379"
+      - "6380:6379"
     restart: unless-stopped
     networks:
       - default
+      - dify
     healthcheck:
       test:
         [
@@ -91,6 +88,7 @@ services:
     restart: unless-stopped
     networks:
       - default
+      - dify
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434"]
       interval: 30s
@@ -124,6 +122,7 @@ services:
     restart: unless-stopped
     networks:
       - default
+      - dify
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -142,7 +141,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:difyai123456@db_postgres:5432/dify}
       SECRET_KEY: ${SECRET_KEY}
       # 默认本地存储与同步任务，无需 Redis / MinIO
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
@@ -173,12 +172,10 @@ services:
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
     ports:
       - "8000:8000"
-    depends_on:
-      db_postgres:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - default
+      - dify
     volumes:
       # 本地存储持久化
       - backend_storage:${STORAGE_LOCAL_ROOT:-/app/data/storage}
@@ -203,7 +200,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:difyai123456@db_postgres:5432/dify}
       SECRET_KEY: ${SECRET_KEY}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/app/data/storage}
@@ -226,13 +223,12 @@ services:
       MINERU_API_URL: ${MINERU_API_URL:-}
       MINERU_TIMEOUT: ${MINERU_TIMEOUT:-120}
     depends_on:
-      db_postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - default
+      - dify
     volumes:
       - backend_storage:${STORAGE_LOCAL_ROOT:-/app/data/storage}
     healthcheck:
@@ -262,6 +258,7 @@ services:
     restart: unless-stopped
     networks:
       - default
+      - dify
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 15s
@@ -272,6 +269,9 @@ services:
 networks:
   default:
     driver: bridge
+  dify:
+    name: dify_default
+    external: true
 
 volumes:
   ollama_data:

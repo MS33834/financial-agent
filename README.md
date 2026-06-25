@@ -4,6 +4,8 @@
 
 > 一个基于 Dify + LangGraph + Ollama + Vanna 的企业级财务智能体 MVP。
 > PDF 解析默认使用本地 pdfplumber，Mineru 作为可选增强；存储与任务执行默认本地，MinIO / Celery 作为可选扩展。
+>
+> 后续完善计划见 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ---
 
@@ -66,7 +68,21 @@ make up
 
 首次启动会拉取镜像并初始化 Dify 数据库，可能需要 5-10 分钟。
 
-### 3.3 检查服务状态
+### 3.3 不启动 Dify（核心模式）
+
+如果只需要 Financial Agent 核心功能，不启动 Dify：
+
+```bash
+make up-core
+```
+
+此时需要显式启动本地数据库：
+
+```bash
+docker compose --profile local-db up -d
+```
+
+### 3.4 检查服务状态
 
 ```bash
 make status
@@ -76,16 +92,15 @@ make status
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| Dify 控制台 | http://localhost:3000 | 默认账号 `admin@dify.ai` / `.env` 中 `INIT_PASSWORD` |
-| Dify API | http://localhost:5001 | 后端 API |
-| Dify Nginx | http://localhost:8080 | 统一入口（API + Web） |
-| Ollama | http://localhost:11434 | 本地大模型服务 |
+| Dify 控制台 | http://localhost:8080 | 默认账号 `admin@dify.ai` / `.env` 中 `INIT_PASSWORD` |
+| Dify API | http://localhost:8080/v1 | 通过 Nginx 统一入口暴露 |
 | 财务智能体后端 | http://localhost:8000 | 业务后端 API |
 | 财务智能体前端 | http://localhost:3000 | React Web 前端 |
+| Ollama | http://localhost:11434 | 本地大模型服务 |
 | MinIO 控制台 | http://localhost:9001 | 对象存储管理（可选，`STORAGE_BACKEND=minio` 时启用） |
 | MinIO API | http://localhost:9000 | S3 兼容 API（可选） |
 
-### 3.4 拉取大模型
+### 3.5 拉取大模型
 
 ```bash
 make pull-model
@@ -93,7 +108,7 @@ make pull-model
 
 默认拉取 `qwen2.5:7b`。若硬件资源紧张，修改 `.env` 中的 `OLLAMA_MODEL` 为 `qwen2.5:3b` 后重新执行。
 
-### 3.5 初始化 MinIO Bucket（可选）
+### 3.6 初始化 MinIO Bucket（可选）
 
 仅当 `.env` 中 `STORAGE_BACKEND=minio` 时才需要执行：
 
@@ -104,7 +119,7 @@ make create-bucket
 
 默认 `STORAGE_BACKEND=local` 时无需此步骤，文件直接存储在本地卷 `backend_storage`。
 
-### 3.6 启用 Celery 异步任务（可选）
+### 3.7 启用 Celery 异步任务（可选）
 
 默认 `TASK_BACKEND=sync` 时任务同步执行。如需异步，修改 `.env`：
 
@@ -121,7 +136,7 @@ CELERY_RESULT_BACKEND=redis://:difyai123456@redis:6379/2
 docker compose --profile celery up -d
 ```
 
-### 3.7 停止服务
+### 3.8 停止服务
 
 ```bash
 make down

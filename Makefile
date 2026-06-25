@@ -55,20 +55,62 @@ validate-prod: ## 校验生产环境 Compose 配置（无需启动 Docker）
 	@echo "==> Validating production Docker Compose configuration..."
 	@docker compose -f $(COMPOSE_FILE) -f $(COMPOSE_PROD_FILE) config > /dev/null && echo "Production compose configuration is valid."
 
-up: ## 启动全部服务（后台）
-	docker compose -f $(COMPOSE_FILE) --env-file .env up -d
+up: ## 启动全部服务（含 Dify，后台）
+	@if [ ! -d "vendor/dify/docker" ]; then \
+		echo "==> Dify vendor not found, running make init..."; \
+		$(MAKE) init; \
+	fi
+	@echo "==> Starting Dify..."
+	@cp -f .env vendor/dify/docker/.env
+	@docker compose -f vendor/dify/docker/docker-compose.yaml -p dify --env-file vendor/dify/docker/.env up -d
+	@echo "==> Ensuring shared network for Dify..."
+	@docker network inspect dify_default >/dev/null 2>&1 || docker network create dify_default
+	@echo "==> Starting Financial Agent..."
+	@docker compose -f $(COMPOSE_FILE) --env-file .env up -d
+
+up-core: ## 不启动 Dify，仅启动 Financial Agent 核心服务（后台，需加 --profile local-db）
+	@docker compose -f $(COMPOSE_FILE) --env-file .env up -d
 
 up-build: ## 启动全部服务并重新构建
-	docker compose -f $(COMPOSE_FILE) --env-file .env up -d --build
+	@if [ ! -d "vendor/dify/docker" ]; then \
+		echo "==> Dify vendor not found, running make init..."; \
+		$(MAKE) init; \
+	fi
+	@echo "==> Starting Dify (rebuild if needed)..."
+	@cp -f .env vendor/dify/docker/.env
+	@docker compose -f vendor/dify/docker/docker-compose.yaml -p dify --env-file vendor/dify/docker/.env up -d --build
+	@echo "==> Ensuring shared network for Dify..."
+	@docker network inspect dify_default >/dev/null 2>&1 || docker network create dify_default
+	@echo "==> Starting Financial Agent (rebuild)..."
+	@docker compose -f $(COMPOSE_FILE) --env-file .env up -d --build
 
 up-prod: ## 以生产模式启动全部服务（后台）
-	docker compose -f $(COMPOSE_FILE) -f $(COMPOSE_PROD_FILE) --env-file .env up -d
+	@if [ ! -d "vendor/dify/docker" ]; then \
+		echo "==> Dify vendor not found, running make init..."; \
+		$(MAKE) init; \
+	fi
+	@echo "==> Starting Dify (production)..."
+	@cp -f .env vendor/dify/docker/.env
+	@docker compose -f vendor/dify/docker/docker-compose.yaml -p dify --env-file vendor/dify/docker/.env up -d
+	@echo "==> Ensuring shared network for Dify..."
+	@docker network inspect dify_default >/dev/null 2>&1 || docker network create dify_default
+	@echo "==> Starting Financial Agent (production)..."
+	@docker compose -f $(COMPOSE_FILE) -f $(COMPOSE_PROD_FILE) --env-file .env up -d
 
-down: ## 停止并移除全部服务
-	docker compose -f $(COMPOSE_FILE) down
+down: ## 停止并移除全部服务（含 Dify）
+	@docker compose -f $(COMPOSE_FILE) down
+	@if [ -f "vendor/dify/docker/docker-compose.yaml" ]; then \
+		docker compose -f vendor/dify/docker/docker-compose.yaml -p dify down; \
+	fi
+
+down-core: ## 停止 Financial Agent 核心服务（不含 Dify）
+	@docker compose -f $(COMPOSE_FILE) down
 
 down-volumes: ## 停止服务并删除数据卷（危险：数据清空）
-	docker compose -f $(COMPOSE_FILE) down -v
+	@docker compose -f $(COMPOSE_FILE) down -v
+	@if [ -f "vendor/dify/docker/docker-compose.yaml" ]; then \
+		docker compose -f vendor/dify/docker/docker-compose.yaml -p dify down -v; \
+	fi
 
 logs: ## 查看所有服务日志（跟随模式）
 	docker compose -f $(COMPOSE_FILE) logs -f
