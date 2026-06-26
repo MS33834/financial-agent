@@ -38,13 +38,13 @@
 | H1 | 部署 | 验证 `make init && make up` 在干净环境可跑通 | 待验证 | 找一台新机器或 CI job 执行完整启动流程，确认 Dify 与 FA 网络互通、数据库可连、前端可访问 | `Makefile`, `docker-compose.yml` |
 | H2 | 部署 | 修复 `down-volumes` 同时清理 Dify 数据卷 | 已完成 | `down-volumes` 已同步调用 `docker compose ... -p dify down -v` 清理 Dify 卷 | `Makefile` |
 | H3 | 部署 | 解决 `make up-build` 不会触发镜像重建的问题 | 已完成 | `up-build` 已显式对 Dify 与 FA 分别传入 `--build` | `Makefile` |
-| H4 | 安全 | 强制生产环境修改默认 SECRET_KEY / INIT_PASSWORD | 待实现 | 在 `scripts/bootstrap.py` 或 entrypoint 中增加校验，禁止用户使用示例弱密钥启动 production | `scripts/bootstrap.py`, `scripts/entrypoint.sh` |
-| H5 | 安全 | 生产环境 CORS 默认禁止通配符 | 待实现 | 当前代码在 `CORS_ORIGINS=*` 时禁用 credentials，但建议 production 直接拒绝启动并提示 | `app/main.py` |
-| H6 | 后端 | 修复 `IMService` 用 `TestClient` 调用内部 API 的架构问题 | 待重构 | MVP 注释已说明应改为直接调用 service 层；当前方式耦合 FastAPI 测试客户端，生产环境不推荐 | `app/services/im_service.py` |
-| H7 | 后端 | 完善 IM 机器人命令处理错误边界 | 待实现 | `im_service.py` 多处错误处理分支未覆盖，需补充单元测试 | `app/services/im_service.py`, `tests/test_im.py` |
+| H4 | 安全 | 强制生产环境修改默认 SECRET_KEY / INIT_PASSWORD | 已完成 | `main.py` lifespan 启动前新增 `_validate_production_config()`：生产环境拒绝空/示例默认值/长度<32 的 SECRET_KEY，fail-fast | `backend/app/main.py` |
+| H5 | 安全 | 生产环境 CORS 默认禁止通配符 | 已完成 | `_validate_production_config()` 在生产环境检测到 `CORS_ORIGINS=*` 时直接拒绝启动并提示配置前端域名 | `backend/app/main.py` |
+| H6 | 后端 | 修复 `IMService` 用 `TestClient` 调用内部 API 的架构问题 | 已完成 | R8 已重构：移除 `TestClient`，改为直接调用 service 层 | `app/services/im_service.py` |
+| H7 | 后端 | 完善 IM 机器人命令处理错误边界 | 已完成 | 新增 5 个单测覆盖：不存在的 report_id、序号缓存为空、序号越界、handle_command 异常兜底、缺少 report_id 用法提示 | `app/services/im_service.py`, `tests/test_im.py` |
 | H8 | 后端 | 实现通知服务占位模块 | 待实现 | `backend/notification/` 为空目录，需实现邮件/IM/站内信通知能力 | `backend/notification/` |
 | H9 | 测试 | 核心模块测试覆盖率提升到 90%+ | 待实现 | 重点覆盖 `dify_tools.py` (53%)、`health.py` (59%)、`reflection_service.py` (54%)、`report_service.py` (79%) | `tests/` |
-| H10 | 前端 | 实现 404 页面 | 待实现 | 当前 `path="*"` 直接重定向到 dashboard | `frontend/src/App.tsx` |
+| H10 | 前端 | 实现 404 页面 | 已完成 | 新增 `NotFoundPage` 组件，`App.tsx` 的 `path="*"` 改为渲染 404 页面而非静默重定向 | `frontend/src/pages/NotFoundPage.tsx`, `frontend/src/App.tsx` |
 
 ### 2.2 中优先级（功能完整性）
 
@@ -72,8 +72,8 @@
 |----|------|------|------|-----------------|----------|
 | L1 | 部署 | Dockerfile builder 阶段不安装 dev 依赖已修复，但需验证镜像大小 | 待验证 | 确认生产镜像不再包含 pytest/ruff/mypy | `backend/Dockerfile` |
 | L2 | 部署 | 统一 Python 版本（3.12 vs 3.14） | 待决策 | CI/本地使用 3.14，Dockerfile 用 3.12，建议明确支持矩阵 | `backend/Dockerfile`, CI workflow |
-| L3 | 部署 | 非 root 用户运行时数据卷权限处理 | 待实现 | `USER appuser` 运行，挂载卷可能因 UID 不一致导致写入失败 | `backend/Dockerfile`, `scripts/entrypoint.sh` |
-| L4 | 部署 | 生产环境 Alembic 迁移失败兜底策略 | 待实现 | 当前 `alembic upgrade head` 失败直接退出，建议增加重试或健康检查 | `scripts/entrypoint.sh` |
+| L3 | 部署 | 非 root 用户运行时数据卷权限处理 | 已完成 | Dockerfile 已 `mkdir -p /app/data/storage && chown -R appuser:appuser /app`；appuser 固定 UID/GID=999 与 Helm `runAsUser` 对齐，命名卷首次挂载继承镜像目录属主 | `backend/Dockerfile` |
+| L4 | 部署 | 生产环境 Alembic 迁移失败兜底策略 | 已完成 | `entrypoint.sh` 的 `alembic upgrade head` 改为重试 3 次、间隔递增（5/10s），全部失败才退出 | `scripts/entrypoint.sh` |
 | L5 | 部署 | 多实例 RateLimit 改为 Redis 实现 | 待实现 | 当前内存实现无法跨实例共享；当启用 Redis 时可切换 | `app/middleware.py` |
 | L6 | 文档 | 填充 `docs/design/` 设计文档 | 待实现 | 当前为空目录，需补充架构图、数据流、模块边界 | `docs/design/` |
 | L7 | 文档 | 完善 API 文档 | 待实现 | `docs/api/overview.md` 内容较简单，可接入 OpenAPI/Swagger 导出 | `docs/api/` |
@@ -176,3 +176,4 @@
 | 2026-06-25 | AI Assistant | 新增本次 MVP 闭环 review 任务（R1~R8），并将 H2/H3 标记为已完成 |
 | 2026-06-25 | AI Assistant | 完成 R1~R8 全部修复：CORS、审批页面、document_qa 过滤、Makefile、导出按钮、Dify 端口、IMService 重构 |
 | 2026-06-26 | AI Assistant | 全面检查与优化（C1~C17）：路径穿越、Excel DoS、审计事务原子性、Modal 焦点陷阱、FormData、nginx PID、Dockerfile UID、worker Redis 默认值等 |
+| 2026-06-26 | AI Assistant | 工程化补强：H4/H5 生产配置强校验（SECRET_KEY/CORS）、H6 同步已完成、H7 IM 错误边界单测、H10 404 页面、L3 卷权限、L4 Alembic 重试、CI pip 缓存 |

@@ -752,3 +752,155 @@ def test_wecom_webhook_user_found_by_mapping(
         )
         assert resp.status_code == 200
         assert resp.json()["content"]["content"] == "查询结果"
+
+
+def test_dingtalk_webhook_approve_nonexistent_report(
+    db_session: Session,
+    client: TestClient,
+    test_user: User,
+) -> None:
+    """审批不存在的 report_id 应返回友好提示而非 500."""
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
+    db_session.commit()
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": "/approve report_id=nonexistent-id"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "未找到指定报告" in resp.json()["text"]["content"]
+
+
+def test_dingtalk_webhook_approve_index_without_cache(
+    db_session: Session,
+    client: TestClient,
+    test_user: User,
+) -> None:
+    """未先执行 /pending 直接按序号审批应提示缓存为空."""
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
+    db_session.commit()
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": "/approve 1"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "未找到待审报告缓存" in resp.json()["text"]["content"]
+
+
+def test_dingtalk_webhook_approve_index_out_of_range(
+    db_session: Session,
+    client: TestClient,
+    auth_headers: dict[str, str],
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """序号超出 /pending 缓存范围应提示越界."""
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
+    db_session.commit()
+    _create_reviewing_report(db_session, client, auth_headers, monkeypatch)
+
+    # 先 /pending 缓存 1 条
+    with _mock_bot():
+        client.post(
+            "/api/v1/im/dingtalk",
+            json={"text": {"content": "/pending"}, "senderStaffId": "ding_approver"},
+        )
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": "/approve 99"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "超出范围" in resp.json()["text"]["content"]
+
+
+def test_dingtalk_webhook_command_exception_fallback(
+    db_session: Session,
+    client: TestClient,
+    test_user: User,
+) -> None:
+    """handle_command 抛出未预期异常时应返回兜底错误提示而非崩溃."""
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
+    db_session.commit()
+
+    with _mock_bot(), patch(
+        "app.routers.im.handle_command", side_effect=RuntimeError("unexpected boom")
+    ):
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": "/query 营收"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "处理命令时发生错误" in resp.json()["text"]["content"]
+
+
+def test_dingtalk_webhook_approve_missing_report_id(
+    db_session: Session,
+    client: TestClient,
+    test_user: User,
+) -> None:
+    """审批命令缺少 report_id 或序号应提示用法."""
+    db_session.add(
+        IMUserMapping(
+            tenant_id=test_user.tenant_id,
+            user_id=test_user.id,
+            platform="dingtalk",
+            im_user_id="ding_approver",
+        )
+    )
+    db_session.commit()
+
+    with _mock_bot():
+        resp = client.post(
+            "/api/v1/im/dingtalk",
+            json={
+                "text": {"content": "/approve"},
+                "senderStaffId": "ding_approver",
+            },
+        )
+        assert resp.status_code == 200
+        assert "请输入 report_id 或序号" in resp.json()["text"]["content"]

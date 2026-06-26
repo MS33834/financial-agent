@@ -12,6 +12,7 @@ const AuditPage = lazy(() => import('./pages/AuditPage.tsx'))
 const AgentChatPage = lazy(() => import('./pages/AgentChatPage.tsx'))
 const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage.tsx'))
 const ReflectionsPage = lazy(() => import('./pages/ReflectionsPage.tsx'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.tsx'))
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuth()
@@ -81,7 +82,7 @@ function App() {
               </PrivateRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </AuthProvider>

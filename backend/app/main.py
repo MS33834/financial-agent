@@ -37,11 +37,50 @@ from app.routers import (
 logger = get_logger(__name__)
 
 
+def _validate_production_config() -> None:
+    """生产环境启动前强校验敏感配置，拒绝弱密钥/不安全默认值启动.
+
+    只在 app_env == "production" 时执行，开发/测试环境跳过。
+    """
+    settings = get_settings()
+    if settings.app_env != "production":
+        return
+
+    # 已知弱 SECRET_KEY 默认值（来自 .env.example / backend/.env.example）
+    weak_secret_keys = {
+        "change-me-in-production-32-char-min",
+        "change-me-to-a-random-secret-key",
+        "your-secret-key",
+        "secret-key",
+    }
+    if not settings.secret_key or settings.secret_key in weak_secret_keys:
+        raise RuntimeError(
+            "生产环境启动被拒绝：SECRET_KEY 为空或使用了示例默认值。"
+            "请通过环境变量设置一个不少于 32 字符的随机密钥。"
+        )
+    if len(settings.secret_key) < 32:
+        raise RuntimeError(
+            f"生产环境启动被拒绝：SECRET_KEY 长度仅 {len(settings.secret_key)} 字符，"
+            "要求至少 32 字符。请使用 `openssl rand -hex 32` 生成。"
+        )
+
+    # CORS 通配符在生产环境会放大 CSRF / 凭证泄露风险，直接拒绝
+    if settings.cors_origins_list == ["*"]:
+        raise RuntimeError(
+            "生产环境启动被拒绝：CORS_ORIGINS 为通配符 '*'。"
+            "请显式配置允许的前端域名（逗号分隔），例如 https://fa.example.com。"
+        )
+
+    logger.info("production_config_validated")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """应用生命周期管理."""
     configure_logging()
     settings = get_settings()
+    # 生产环境强校验：弱密钥 / CORS 通配符等不安全配置直接 fail-fast
+    _validate_production_config()
     logger.info(
         "starting_up",
         app_name=settings.app_name,

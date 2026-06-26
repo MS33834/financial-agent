@@ -17,7 +17,20 @@ fi
 # 生产环境应使用 Alembic 迁移；开发环境由 FastAPI lifespan 自动建表
 if [ "$APP_ENV" = "production" ]; then
   echo "Running database migrations..."
-  alembic upgrade head
+  # 迁移失败兜底：重试 3 次，间隔递增，避免数据库主从切换瞬间导致迁移失败
+  MIGRATION_MAX_RETRIES=3
+  for attempt in $(seq 1 $MIGRATION_MAX_RETRIES); do
+    if alembic upgrade head; then
+      echo "Migrations applied successfully."
+      break
+    fi
+    if [ "$attempt" -eq "$MIGRATION_MAX_RETRIES" ]; then
+      echo "ERROR: Alembic migration failed after $MIGRATION_MAX_RETRIES attempts, aborting." >&2
+      exit 1
+    fi
+    echo "Migration attempt $attempt failed, retrying in $((attempt * 5))s..." >&2
+    sleep $((attempt * 5))
+  done
 fi
 
 # 初始化默认租户和管理员
