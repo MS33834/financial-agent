@@ -50,8 +50,8 @@
 
 | ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
 |----|------|------|------|-----------------|----------|
-| M1 | 后端 | 实现审计服务独立模块 | 待实现 | `backend/audit_service/` 为空目录，需将当前 `app/services/audit_service.py` 中的能力沉淀为可扩展审计框架 | `backend/audit_service/`, `app/services/audit_service.py` |
-| M2 | 后端 | 实现 Vanna 引擎占位模块 | 待实现 | `backend/vanna_engine/` 为空目录，当前 Text2SQL 的 Vanna 后端在 `app/text2sql/` 中，可迁移/封装 | `backend/vanna_engine/`, `app/text2sql/vanna_backend.py` |
+| M1 | 后端 | 实现审计服务独立模块 | 已完成 | 新增 `audit_service/` 顶层模块：AuditEvent 数据结构 + AuditSink Protocol + DatabaseAuditSink/LoggingAuditSink/CallbackAuditSink 可插拔 sink + AuditLogger 多 sink 分发器；`log_action` 保持向后兼容并分发到旁路 sink；`app/services/audit_service.py` 委托给新框架 | `backend/audit_service/`, `backend/app/services/audit_service.py` |
+| M2 | 后端 | 实现 Vanna 引擎占位模块 | 已完成 | 新增 `vanna_engine/` 顶层模块：VannaEngine 封装 Vanna 客户端生命周期与训练（DDL/SQL/文档）/SQL 生成/训练数据管理；lazy import + 未安装降级；与 `app/text2sql/vanna_backend.py` 适配层分工（引擎层 vs 适配层） | `backend/vanna_engine/`, `backend/app/text2sql/vanna_backend.py` |
 | M3 | 后端 | API Key 生命周期管理 | 已完成 | 新增 usage_count/first_used_at/rotated_from 字段；validate_api_key 更新使用统计；新增 rotate_api_key 轮换函数与 POST /{id}/rotate API | `app/services/api_key_service.py`, `app/models/api_key.py`, `app/routers/api_keys.py` |
 | M4 | 后端 | 增强 Agent 多轮对话与错误恢复 | 已完成 | AgentChatRequest 新增 conversation_id/history 字段；run_agent 支持 history 注入；execute_tool 节点添加最多 2 次指数退避重试 | `app/routers/agent.py`, `app/agent_runtime/graph.py` |
 | M5 | 后端 | RAG 持久化索引 | 已完成 | index_document 同时写入 rag_chunks 表（原生 SQL，兼容 SQLite/PG）；query 内存未命中时回退 DB 查询；新增 persist_to_db 方法 | `app/services/rag_service.py` |
@@ -78,7 +78,7 @@
 | L6 | 文档 | 填充 `docs/design/` 设计文档 | 已完成 | 扩展 architecture.md：新增核心模块表（通知/RAG）、模块边界与依赖关系、技术选型说明 | `docs/design/architecture.md` |
 | L7 | 文档 | 完善 API 文档 | 已完成 | overview.md 扩展：16 模块完整端点列表、API Key 认证说明、DataResponse/PaginatedResponse 格式、错误码约定 | `docs/api/overview.md` |
 | L8 | 文档 | 建立 CHANGELOG | 已完成 | 新建 CHANGELOG.md，Keep a Changelog 格式，含 0.2.0（功能增强）与 0.1.0（MVP）两个版本 | `CHANGELOG.md` |
-| L9 | 治理 | 清理空占位目录 | 已完成 | notification/、shared/、workers/ 已填充实际代码；audit_service/、vanna_engine/ 保留 .gitkeep（M1/M2 待实现时填充） | - |
+| L9 | 治理 | 清理空占位目录 | 已完成 | notification/、shared/、workers/、audit_service/、vanna_engine/ 全部填充实际代码并移除 .gitkeep | - |
 | L10 | 治理 | 版本号与 Release 管理 | 已完成 | pyproject.toml、package.json、main.py 版本统一升至 0.2.0 | `pyproject.toml`, `frontend/package.json`, `backend/app/main.py` |
 | L11 | 前端 | 升级依赖并修复安全审计 | 已完成 | npm audit 0 漏洞（409 依赖）；pip-audit 未安装（需后续安装），记录于 CHANGELOG 已知问题 | `frontend/package.json`, `backend/pyproject.toml` |
 | L12 | 后端 | 完善日志与链路追踪 | 已完成 | 新增 app/tracing.py：setup_tracing + OTLP exporter（可选依赖）；logger.py 新增 inject_trace_context processor 注入 trace_id/span_id | `app/tracing.py`, `app/logger.py` |
@@ -156,8 +156,8 @@
 
 完成以下全部项后，可认为项目达到"完整可商用 MVP"：
 
-- [ ] H1-H10 全部完成
-- [ ] M1-M15 全部完成
+- [ ] H1-H10 全部完成（H1 待新机器验证 `make up`）
+- [x] M1-M15 全部完成
 - [ ] 后端测试覆盖率 ≥ 90%
 - [ ] 前端测试覆盖率 ≥ 80%
 - [ ] e2e 测试覆盖：登录、上传文档、生成报告、审批、Agent 对话
@@ -178,3 +178,4 @@
 | 2026-06-26 | AI Assistant | 全面检查与优化（C1~C17）：路径穿越、Excel DoS、审计事务原子性、Modal 焦点陷阱、FormData、nginx PID、Dockerfile UID、worker Redis 默认值等 |
 | 2026-06-26 | AI Assistant | 工程化补强：H4/H5 生产配置强校验（SECRET_KEY/CORS）、H6 同步已完成、H7 IM 错误边界单测、H10 404 页面、L3 卷权限、L4 Alembic 重试、CI pip 缓存 |
 | 2026-06-26 | AI Assistant | 功能增强批次 0.2.0：H8 通知服务、H9 测试覆盖、M3-M9 后端模块、M10-M14 前端页面与测试、M15 集成测试、L2/L5-L12 工程化治理 |
+| 2026-06-26 | AI Assistant | M1/M2 收尾：审计服务独立模块（AuditEvent/AuditSink/AuditLogger 多 sink 框架）、Vanna 引擎占位模块（VannaEngine 训练/SQL 生成/训练数据管理）；新增 34 个测试，后端达 265 passed / 22 skipped |
