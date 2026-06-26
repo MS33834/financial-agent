@@ -13,10 +13,19 @@ export default function Modal({ title, children, footer, onClose }: ModalProps) 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
+  // 关闭回调用 ref 持有，避免每次渲染传入新引用导致 effect 重复执行
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  // mount 时聚焦关闭按钮，仅执行一次
+  useEffect(() => {
+    closeButtonRef.current?.focus()
+  }, [])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
       // 焦点陷阱：Tab/Shift+Tab 时将焦点限制在弹窗内
@@ -37,10 +46,8 @@ export default function Modal({ title, children, footer, onClose }: ModalProps) 
       }
     }
     document.addEventListener('keydown', handler)
-    // 进入时聚焦关闭按钮，离开时恢复焦点
-    closeButtonRef.current?.focus()
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [])
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">

@@ -18,7 +18,7 @@ from app.schemas.access_policy import (
     AccessPolicyResponse,
     AccessPolicyUpdate,
 )
-from app.schemas.common import DataResponse, PaginationParams
+from app.schemas.common import DataResponse, PaginatedResponse, PaginationParams
 
 router = APIRouter(prefix="/api/v1/access-policies", tags=["Access Policies"])
 
@@ -38,7 +38,7 @@ def _to_response(policy: AccessPolicy) -> dict[str, Any]:
     }
 
 
-@router.get("", response_model=DataResponse[list[AccessPolicyResponse]])
+@router.get("", response_model=PaginatedResponse[AccessPolicyResponse])
 def list_policies(
     params: PaginationParams = Depends(),
     user: User = Depends(require_abac_permission("access_policy", "read")),
@@ -56,8 +56,12 @@ def list_policies(
     return {
         "code": 0,
         "message": "ok",
-        "data": [_to_response(item) for item in items],
-        "pagination": {"page": params.page, "page_size": params.page_size, "total": total},
+        "data": {
+            "total": total,
+            "page": params.page,
+            "page_size": params.page_size,
+            "items": [_to_response(item) for item in items],
+        },
     }
 
 

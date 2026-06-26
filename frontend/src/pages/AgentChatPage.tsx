@@ -1,6 +1,7 @@
 import { useState, type FormEvent, useRef, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { api } from '../api/client'
+import { getErrorMessage } from '../utils/errors'
 import NavBar from '../components/NavBar.tsx'
 
 interface Message {
@@ -47,7 +48,7 @@ export default function AgentChatPage() {
       if (!trimmed || loading) return
 
       const userMessage: Message = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         role: 'user',
         content: trimmed,
         createdAt: new Date(),
@@ -63,14 +64,14 @@ export default function AgentChatPage() {
         setMessages((prev) => [
           ...prev,
           {
-            id: `${Date.now()}-answer`,
+            id: `${crypto.randomUUID()}-answer`,
             role: 'agent',
             content: answer,
             createdAt: new Date(),
           },
         ])
-      } catch {
-        setError('智能体回答失败，请稍后重试')
+      } catch (err) {
+        setError(getErrorMessage(err, '智能体回答失败，请稍后重试'))
       } finally {
         setLoading(false)
       }

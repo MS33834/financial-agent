@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api/client.ts'
-import type { Report } from '../types/report.ts'
+import { getErrorMessage } from '../utils/errors.ts'
+import type { Report, DataResponse } from '../types/report.ts'
 
 interface ReportCreateProps {
   onCreated: (report: Report) => void
@@ -19,16 +20,16 @@ export default function ReportCreate({ onCreated }: ReportCreateProps) {
     setError('')
     setLoading(true)
     try {
-      const response = await api.post('/reports', {
+      const response = await api.post<DataResponse<Report>>('/reports', {
         title,
         report_type: reportType,
         parameters: { year, period },
       })
       if (!response.data.data) return
-      onCreated(response.data.data as Report)
+      onCreated(response.data.data)
       setTitle('')
     } catch (err) {
-      setError('创建报告失败')
+      setError(getErrorMessage(err, '创建报告失败'))
     } finally {
       setLoading(false)
     }

@@ -5,12 +5,12 @@ interface NavBarProps {
   showLogout?: boolean
 }
 
-export default function NavBar({ showLogout = false }: NavBarProps) {
+export default function NavBar({ showLogout = true }: NavBarProps) {
   const { role, logout } = useAuth()
   const location = useLocation()
 
   const isActive = (path: string) =>
-    path === '/dashboard' ? location.pathname === '/dashboard' : location.pathname.startsWith(path)
+    location.pathname === path || location.pathname.startsWith(path + '/')
   const canApprove = role === 'admin' || role === 'auditor'
 
   const links = [

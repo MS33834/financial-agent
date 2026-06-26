@@ -9,8 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Python 依赖
+# 安装 Python 依赖（builder 阶段需要源码才能完成 editable 安装）
 COPY pyproject.toml ./
+COPY app/ ./app/
 RUN pip install --no-cache-dir -e "."
 
 # 运行阶段
@@ -25,8 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-wqy-microhei \
     && rm -rf /var/lib/apt/lists/*
 
-# 创建非 root 运行用户
-RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+# 创建非 root 运行用户（UID/GID 固定为 999，与 Helm securityContext.runAsUser 对齐）
+RUN groupadd -r -g 999 appuser && useradd -r -u 999 -g appuser -d /app -s /sbin/nologin appuser
 
 # 复制虚拟环境（从 builder 复制 site-packages）
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
@@ -38,8 +39,8 @@ COPY alembic/ ./alembic/
 COPY scripts/ ./scripts/
 COPY alembic.ini ./
 
-# 确保启动脚本可执行并设置属主
-RUN chmod +x ./scripts/entrypoint.sh && chown -R appuser:appuser /app
+# 确保存储目录存在、启动脚本可执行并设置属主
+RUN mkdir -p /app/data/storage && chmod +x ./scripts/entrypoint.sh && chown -R appuser:appuser /app
 
 USER appuser
 

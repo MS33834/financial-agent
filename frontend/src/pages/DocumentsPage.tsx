@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import NavBar from '../components/NavBar.tsx'
 import { api } from '../api/client'
+import { getErrorMessage } from '../utils/errors'
 import type { Document } from '../types/document'
+import type { DataResponse, PaginatedResponse } from '../types/report'
 import DocumentDetail from '../components/DocumentDetail'
 import DocumentList from '../components/DocumentList'
 import DocumentUpload from '../components/DocumentUpload'
@@ -36,13 +38,12 @@ export default function DocumentsPage() {
     setLoading(true)
     setError('')
     try {
-      const query = filterStatus
-        ? `/documents?status=${filterStatus}&page=1&page_size=50`
-        : '/documents?page=1&page_size=50'
-      const response = await api.get(query)
+      const response = await api.get<DataResponse<PaginatedResponse<Document>>>('/documents', {
+        params: { status: filterStatus || undefined, page: 1, page_size: 50 },
+      })
       setDocuments(response.data.data?.items || [])
     } catch (err) {
-      setError('加载文档列表失败')
+      setError(getErrorMessage(err, '加载文档列表失败'))
     } finally {
       setLoading(false)
     }

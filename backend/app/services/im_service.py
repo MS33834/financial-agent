@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from sqlalchemy.orm import Session
 
 from app.core.abac import ABACEngine
@@ -129,12 +127,11 @@ def _check_abac_approval_permission(
     return True, None
 
 
-def handle_command(command: BotCommand, token: str, db: Session, user: User) -> str:
+def handle_command(command: BotCommand, db: Session, user: User) -> str:
     """处理机器人命令.
 
     Args:
         command: 解析后的命令。
-        token: 当前用户的 JWT Token（保留参数，当前实现已不再使用）。
         db: 数据库会话。
         user: 当前 IM 用户对应的系统用户。
 
@@ -192,14 +189,14 @@ def _handle_command(command: BotCommand, db: Session, user: User) -> str:
         if not allowed:
             return f"操作失败：{abac_error}"
 
-        report = get_report(db, report_id, user.tenant_id)
-        if report is None:
+        target_report = get_report(db, report_id, user.tenant_id)
+        if target_report is None:
             return "操作失败：未找到指定报告，请检查 report_id 是否正确。"
 
         try:
             approval = record_approval(
                 db=db,
-                report=report,
+                report=target_report,
                 action=action,
                 comments=comments,
                 user=user,

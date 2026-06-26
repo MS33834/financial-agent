@@ -14,7 +14,6 @@ from app.im.wecom import WeComBot  # noqa: F401
 from app.logger import get_logger
 from app.models.im_user_mapping import IMUserMapping
 from app.models.user import User
-from app.security import create_access_token
 from app.services.im_service import handle_command
 
 logger = get_logger(__name__)
@@ -87,11 +86,10 @@ def _handle_message(message: IMMessage, platform: str, db: Session) -> dict[str,
     if user is None:
         return bot.build_response("未找到对应的系统用户，请联系管理员绑定账号。")
 
-    token = create_access_token({"sub": user.id})
     try:
-        reply = handle_command(command, token, db, user)
-    except Exception:  # noqa: BLE001
-        logger.warning("im_command_failed", platform=platform, command=command.name)
+        reply = handle_command(command, db, user)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("im_command_failed", platform=platform, command=command.name, error=str(exc))
         return bot.build_error_response("处理命令时发生错误，请稍后重试")
 
     return bot.build_response(reply)

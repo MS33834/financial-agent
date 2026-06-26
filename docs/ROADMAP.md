@@ -112,6 +112,31 @@
 | R7 | 配置 | 修正 Dify 控制台地址端口 | 已完成 | `.env.example` 中 `CONSOLE_WEB_URL` 从 `3000` 改为 `8080` | `.env.example` |
 | R8 | 后端 | IMService 改为直接调用 service 层 | 已完成 | 移除 `TestClient`；改为直接调用 `QueryService`、`create_report_task`、`list_reports`、`record_approval`；保留 ADMIN/AUDITOR 角色校验 | `backend/app/services/im_service.py` |
 
+### 2.5 全面检查与优化（2026-06-26）
+
+> 对后端 / 前端 / 部署三层进行全量代码扫描，批量修复 P0 安全与可用性问题及 P1 工程质量问题。
+> 验证结果：后端 195 passed / 19 skipped，ruff + mypy 全过；前端 build 通过。
+
+| ID | 模块 | 任务 | 状态 | 说明 / 修复方案 | 相关文件 |
+|----|------|------|------|-----------------|----------|
+| C1 | 后端·安全 | 路径穿越防御补全 | 已完成 | `upload` / `download_bytes` 增加 `key.lstrip("/")` + `resolve().relative_to(root)` 双重校验，杜绝绝对路径逃逸 | `backend/app/storage.py` |
+| C2 | 后端·安全 | Excel 解析 DoS 防护 | 已完成 | 弃用 `iter_rows(max_row=...)`（会为空表填充空行导致误判），改为惰性迭代达上限即中止拒绝，避免恶意大文件耗尽内存 | `backend/app/parser/excel_parser.py` |
+| C3 | 后端·事务 | 审计日志与业务写入原子性 | 已完成 | `document_service` / `report_service` 改为 `db.flush()` 取 ID + `log_action(commit=False)` + `db.commit()` 统一提交 | `backend/app/services/document_service.py`, `backend/app/services/report_service.py` |
+| C4 | 后端 | access_policies 分页元数据丢失 | 已完成 | `response_model` 由 `DataResponse[list]` 改为 `PaginatedResponse`，返回 `total/page/page_size/items` 结构，分页信息不再被剥离 | `backend/app/routers/access_policies.py` |
+| C5 | 后端 | IM 路由死代码与异常日志 | 已完成 | 移除 `im.py` 未用的 `create_access_token` 调用；异常日志补充 `error=str(exc)`；`reflect_task_failure` 由 `suppress(Exception)` 改为带 `logger.warning` 的 try/except | `backend/app/routers/im.py`, `backend/app/tasks/utils.py` |
+| C6 | 后端 | IMService 清理死参数 | 已完成 | 移除未使用的 `token` 形参与 `typing.Any` 导入，消除 ruff/mypy 告警 | `backend/app/services/im_service.py` |
+| C7 | 前端·可用性 | Modal 焦点陷阱修复 | 已完成 | `useEffect` 依赖内联 `onClose` 每次渲染重跑导致 textarea 失焦；改用 `useRef` 持有回调，effect 仅注册一次 | `frontend/src/components/ui/Modal.tsx` |
+| C8 | 前端·安全 | 上传 FormData Content-Type | 已完成 | 移除手动设置 `multipart/form-data` header（会丢失 boundary），交由浏览器自动生成 | `frontend/src/components/DocumentUpload.tsx` |
+| C9 | 前端 | AuthContext 绕过 api 实例 | 已完成 | 登录 / me 改用统一 `api` 实例（自动注入 baseURL、拦截器），补齐 `LoginResponse`/`MeResponse` 类型 | `frontend/src/context/AuthContext.tsx` |
+| C10 | 前端 | 统一错误处理与类型安全 | 已完成 | 列表页统一 `getErrorMessage`、`DataResponse<T>` 泛型、`params` 对象替代手拼 URL；`ReportCreate` 移除 `as Report` 断言 | `DocumentsPage`, `ReportsPage`, `AuditPage`, `ReportCreate`, `ReportDetail` 等 |
+| C11 | 前端 | NavBar 高亮与 a11y | 已完成 | `isActive` 支持 `startsWith(path + '/')` 子路由高亮；`showLogout` 默认 true；`Loading` 补 `role="status"` / `aria-live` | `frontend/src/components/NavBar.tsx`, `frontend/src/components/ui/Loading.tsx` |
+| C12 | 前端 | AgentChat key 碰撞与 tabnabbing | 已完成 | `Date.now().toString()` → `crypto.randomUUID()`；外链加 `noopener,noreferrer`；登录判定改 `endsWith('/auth/login')` | `frontend/src/pages/AgentChatPage.tsx`, `frontend/src/api/client.ts` |
+| C13 | 部署 | Ollama healthcheck 与 profile | 已完成 | healthcheck 由 `curl` 改为 `ollama list`；`fa-ollama` 加 `profiles:[ollama]`；worker 加 `hostname` 保证 healthcheck 节点名匹配 | `docker-compose.yml` |
+| C14 | 部署 | nginx 非 root PID 可写 | 已完成 | Dockerfile 用 `sed` 将主 `/etc/nginx/nginx.conf` 的 `pid` 指向 `/tmp/nginx.pid`，确保非 root 可写 | `frontend/Dockerfile` |
+| C15 | 部署 | 后端镜像存储目录与 UID 固定 | 已完成 | builder 阶段补 `COPY app/` 修复 editable 安装缺源码；运行阶段 `mkdir -p /app/data/storage`；`appuser` 固定 UID/GID=999 与 Helm `runAsUser` 对齐 | `backend/Dockerfile` |
+| C16 | 部署 | worker Redis 默认值与依赖 | 已完成 | worker 的 `REDIS_URL`/`CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` 默认指向本 compose 的 redis 服务；明确 backend 不声明 db_postgres depends_on（profile-gated 会致模型失效，改由连接重试保证就绪） | `docker-compose.yml` |
+| C17 | 部署 | Helm / Makefile 一致性 | 已完成 | Helm `RATE_LIMIT_MAX_REQUESTS` 由 100 改为 120 与全局默认一致；`Makefile` `.PHONY` 补全 `up-core`/`down-core`/`backend-worker` 等遗漏目标 | `deploy/helm/financial-agent/values.yaml`, `Makefile` |
+
 ---
 
 ## 3. 需要用户决策的事项
@@ -150,3 +175,4 @@
 | 2026-06-25 | AI Assistant | 初始创建，包含全面 review 结果与完善计划 |
 | 2026-06-25 | AI Assistant | 新增本次 MVP 闭环 review 任务（R1~R8），并将 H2/H3 标记为已完成 |
 | 2026-06-25 | AI Assistant | 完成 R1~R8 全部修复：CORS、审批页面、document_qa 过滤、Makefile、导出按钮、Dify 端口、IMService 重构 |
+| 2026-06-26 | AI Assistant | 全面检查与优化（C1~C17）：路径穿越、Excel DoS、审计事务原子性、Modal 焦点陷阱、FormData、nginx PID、Dockerfile UID、worker Redis 默认值等 |

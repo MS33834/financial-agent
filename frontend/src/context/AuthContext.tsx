@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from 'react'
-import axios from 'axios'
+import { api } from '../api/client'
+import { getErrorMessage } from '../utils/errors'
 
 interface AuthContextValue {
   token: string | null
@@ -7,6 +8,21 @@ interface AuthContextValue {
   username: string | null
   login: (username: string, password: string) => Promise<void>
   logout: () => void
+}
+
+interface LoginResponse {
+  access_token: string
+}
+
+interface MeResponse {
+  role: string
+  username: string
+}
+
+interface DataResponse<T> {
+  code: number
+  message: string
+  data: T
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -17,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [username, setUsername] = useState<string | null>(() => localStorage.getItem('username'))
 
   const login = useCallback(async (username: string, password: string) => {
-    const response = await axios.post('/api/v1/auth/login', { username, password })
+    const response = await api.post<DataResponse<LoginResponse>>('/auth/login', { username, password })
     const accessToken = response.data.data?.access_token
     if (!accessToken) {
       throw new Error('登录响应异常')
@@ -26,9 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(accessToken)
 
     try {
-      const meResponse = await axios.get('/api/v1/auth/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      const meResponse = await api.get<DataResponse<MeResponse>>('/auth/me')
       const userRole = meResponse.data.data?.role
       const userName = meResponse.data.data?.username
       if (!userRole || !userName) {
@@ -38,11 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('username', userName)
       setRole(userRole)
       setUsername(userName)
-    } catch {
+    } catch (err) {
       // /me 失败时回滚，避免进入不一致状态
       localStorage.removeItem('token')
       setToken(null)
-      throw new Error('获取用户信息失败')
+      throw new Error(getErrorMessage(err, '获取用户信息失败'))
     }
   }, [])
 

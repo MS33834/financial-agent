@@ -76,11 +76,16 @@ class LocalStorageClient(BaseStorageClient):
         Returns:
             文件本地路径。
         """
-        # 防止路径穿越：key 不允许包含 ..
+        # 防止路径穿越：key 不允许包含 .. 或以 / 开头
         if ".." in key.split("/"):
-            raise StorageClientError("对象 key 不允许包含 '..")
-
+            raise StorageClientError("对象 key 不允许包含 '..'")
+        key = key.lstrip("/")
         file_path = self.root / key
+        # 二次校验：resolve 后必须仍在 root 之下
+        try:
+            file_path.resolve().relative_to(self.root.resolve())
+        except ValueError as exc:
+            raise StorageClientError("对象 key 路径非法") from exc
         file_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             file_path.write_bytes(data)
@@ -111,8 +116,12 @@ class LocalStorageClient(BaseStorageClient):
         """
         if ".." in key.split("/"):
             raise StorageClientError("对象 key 不允许包含 '..'")
-
+        key = key.lstrip("/")
         file_path = self.root / key
+        try:
+            file_path.resolve().relative_to(self.root.resolve())
+        except ValueError as exc:
+            raise StorageClientError("对象 key 路径非法") from exc
         if not file_path.exists():
             raise StorageClientError(f"对象不存在: {key}")
         try:

@@ -25,15 +25,17 @@ def create_document_task(
         status="pending",
     )
     db.add(doc)
-    db.commit()
-    db.refresh(doc)
+    db.flush()  # 获取 ID 但不提交
 
     log_action(
         db=db,
         action="document.create",
         resource=f"document://{doc.id}",
         user=user,
+        commit=False,
     )
+    db.commit()
+    db.refresh(doc)
 
     # 触发异步解析；测试环境 eager 模式下同步执行
     parse_document_task.delay(doc.id)

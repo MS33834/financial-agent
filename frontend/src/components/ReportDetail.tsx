@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { api } from '../api/client.ts'
+import { getErrorMessage } from '../utils/errors.ts'
 import type { Report } from '../types/report.ts'
 import Modal from './ui/Modal.tsx'
 import Badge from './ui/Badge.tsx'
@@ -42,7 +43,7 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
     setExporting(true)
     setExportError('')
     try {
-      const response = await api.post(`/reports/${report.id}/export`, null, {
+      const response = await api.post(`/reports/${report.id}/export`, {}, {
         params: { format },
       })
       const url = response.data.data?.content_url
@@ -50,9 +51,9 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
         setExportError('导出链接获取失败')
         return
       }
-      window.open(url, '_blank')
-    } catch {
-      setExportError('导出失败')
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      setExportError(getErrorMessage(err, '导出失败'))
     } finally {
       setExporting(false)
     }
@@ -81,7 +82,7 @@ export default function ReportDetail({ report, onClose }: ReportDetailProps) {
             {exporting ? '导出中...' : '导出'}
           </button>
           {report.content_url && (
-            <a href={report.content_url} target="_blank" rel="noreferrer" className="link">
+            <a href={report.content_url} target="_blank" rel="noreferrer noopener" className="link">
               已导出文件
             </a>
           )}

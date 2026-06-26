@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import NavBar from '../components/NavBar.tsx'
 import { api } from '../api/client.ts'
-import type { Report } from '../types/report.ts'
+import { getErrorMessage } from '../utils/errors.ts'
+import type { Report, DataResponse, PaginatedResponse } from '../types/report.ts'
 import ReportList from '../components/ReportList.tsx'
 import ReportDetail from '../components/ReportDetail.tsx'
 import ReportCreate from '../components/ReportCreate.tsx'
@@ -27,10 +28,12 @@ export default function ReportsPage() {
     setLoading(true)
     setError('')
     try {
-      const response = await api.get('/reports?page=1&page_size=50')
+      const response = await api.get<DataResponse<PaginatedResponse<Report>>>('/reports', {
+        params: { page: 1, page_size: 50 },
+      })
       setReports(response.data.data?.items || [])
     } catch (err) {
-      setError('加载报告列表失败')
+      setError(getErrorMessage(err, '加载报告列表失败'))
     } finally {
       setLoading(false)
     }

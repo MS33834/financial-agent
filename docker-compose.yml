@@ -81,6 +81,8 @@ services:
   fa-ollama:
     image: ollama/ollama:latest
     container_name: financial-agent-ollama
+    profiles:
+      - ollama
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -90,7 +92,7 @@ services:
       - default
       - dify
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434"]
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -179,6 +181,9 @@ services:
     volumes:
       # 本地存储持久化
       - backend_storage:${STORAGE_LOCAL_ROOT:-/app/data/storage}
+    # 注意：db_postgres 属于 local-db profile，默认部署复用 Dify 的 db_postgres（同名服务）。
+    # 因此不在此处声明 depends_on，避免 profile 未激活时 compose 模型失效；
+    # 后端通过连接重试与 healthcheck 保证就绪。
     healthcheck:
       test: ["CMD", "python", "scripts/healthcheck.py"]
       interval: 15s
@@ -196,6 +201,7 @@ services:
     container_name: financial-agent-worker
     profiles:
       - celery
+    hostname: financial-agent-worker
     command: ["python", "scripts/worker.py"]
     environment:
       APP_ENV: ${APP_ENV:-development}
@@ -205,9 +211,10 @@ services:
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/app/data/storage}
       TASK_BACKEND: ${TASK_BACKEND:-celery}
-      REDIS_URL: ${REDIS_URL:-}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-}
+      # Redis 默认指向本 compose 的 redis 服务（celery profile 启动时存在）
+      REDIS_URL: ${REDIS_URL:-redis://:difyai123456@redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://:difyai123456@redis:6379/1}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://:difyai123456@redis:6379/2}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-fa-minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin123}}

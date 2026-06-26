@@ -1,6 +1,8 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { api } from '../api/client'
+import { getErrorMessage } from '../utils/errors'
 import type { Document } from '../types/document'
+import type { DataResponse } from '../types/report'
 
 interface DocumentUploadProps {
   onUploaded: (doc: Document) => void
@@ -39,17 +41,13 @@ export default function DocumentUpload({ onUploaded }: DocumentUploadProps) {
     formData.append('file', file)
 
     try {
-      const response = await api.post('/documents/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+      const response = await api.post<DataResponse<Document>>('/documents/upload', formData)
       if (response.data.data) onUploaded(response.data.data)
       setFile(null)
       const input = document.getElementById('file-input') as HTMLInputElement
       if (input) input.value = ''
     } catch (err) {
-      setError('上传失败，请检查文件格式和权限')
+      setError(getErrorMessage(err, '上传失败，请检查文件格式和权限'))
     } finally {
       setUploading(false)
     }

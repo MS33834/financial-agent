@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react'
 import NavBar from '../components/NavBar.tsx'
 import { api } from '../api/client'
+import { getErrorMessage } from '../utils/errors'
 import type { AuditLog } from '../types/audit'
 import AuditLogList from '../components/AuditLogList'
 import Loading from '../components/ui/Loading.tsx'
+
+interface AuditPaginatedResponse {
+  total: number
+  page: number
+  page_size: number
+  items: AuditLog[]
+}
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([])
@@ -14,10 +22,12 @@ export default function AuditPage() {
     setLoading(true)
     setError('')
     try {
-      const response = await api.get('/audit/logs?page=1&page_size=100')
+      const response = await api.get<{ data: AuditPaginatedResponse }>('/audit/logs', {
+        params: { page: 1, page_size: 100 },
+      })
       setLogs(response.data.data?.items || [])
     } catch (err) {
-      setError('加载审计日志失败，可能没有权限')
+      setError(getErrorMessage(err, '加载审计日志失败，可能没有权限'))
     } finally {
       setLoading(false)
     }

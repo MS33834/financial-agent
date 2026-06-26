@@ -34,16 +34,19 @@ class ExcelParser(BaseDocumentParser):
         if sheet is None:
             return self._empty_result(filename)
 
-        rows = list(sheet.iter_rows(values_only=True))
+        # 流式限制行数，防止恶意大文件耗尽内存。
+        # 不使用 iter_rows(max_row=...) —— 该参数会对空表填充空行，导致误判。
+        # 此处惰性迭代，达到上限即中止并拒绝，避免一次性载入超大文件。
+        rows: list[tuple[Any, ...]] = []
+        row_limit = MAX_EXCEL_ROWS + 1  # 表头 + 数据上限，超出即拒绝
+        for row in sheet.iter_rows(values_only=True):
+            rows.append(row)
+            if len(rows) > row_limit:
+                raise ValueError(
+                    f"Excel 数据行数超过上限 {MAX_EXCEL_ROWS}，请拆分文件后重试"
+                )
         if len(rows) < 2:
             return self._empty_result(filename)
-
-        # 数据行数 = 总行数 - 表头行
-        data_row_count = len(rows) - 1
-        if data_row_count > MAX_EXCEL_ROWS:
-            raise ValueError(
-                f"Excel 数据行数 {data_row_count} 超过上限 {MAX_EXCEL_ROWS}，请拆分文件后重试"
-            )
 
         headers = [str(cell).strip() if cell is not None else "" for cell in rows[0]]
         records: list[dict[str, Any]] = []

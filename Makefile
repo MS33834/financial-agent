@@ -17,7 +17,7 @@ FRONTEND_IMAGE ?= $(REGISTRY)/financial-agent-frontend
 IMAGE_TAG ?= latest
 HELM_CHART_PATH := deploy/helm/financial-agent
 
-.PHONY: help init validate validate-prod up up-build up-prod down down-volumes logs logs-api logs-backend logs-frontend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-migrate backend-seed-demo build-backend build-frontend build-all scan-backend scan-frontend helm-lint helm-template deploy-local deploy-prod
+.PHONY: help init validate validate-prod up up-core up-build up-prod down down-core down-volumes logs logs-api logs-backend logs-frontend pull-model create-bucket shell-ollama shell-api shell-backend status test lint backend-test backend-lint backend-worker backend-migrate backend-migration backend-seed-demo backend-train-vanna backend-benchmark build-backend build-frontend build-all scan-backend scan-frontend helm-lint helm-template deploy-local deploy-prod
 
 help: ## 显示可用命令
 	@echo "Available commands:"

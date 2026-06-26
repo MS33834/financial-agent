@@ -27,15 +27,17 @@ def create_report_task(
         status="pending",
     )
     db.add(report)
-    db.commit()
-    db.refresh(report)
+    db.flush()  # 获取 ID 但不提交
 
     log_action(
         db=db,
         action="report.create",
         resource=f"report://{report.id}",
         user=user,
+        commit=False,
     )
+    db.commit()
+    db.refresh(report)
 
     generate_report_task.delay(report.id)
 
