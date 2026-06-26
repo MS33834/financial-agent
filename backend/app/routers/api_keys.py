@@ -22,6 +22,7 @@ from app.services.api_key_service import (
     get_api_key_by_id,
     list_api_keys,
     revoke_api_key,
+    rotate_api_key,
 )
 
 router = APIRouter(prefix="/api/v1/api-keys", tags=["API Keys"])
@@ -99,6 +100,30 @@ def delete_key(
         "code": 0,
         "message": "ok",
         "data": {"id": key_id, "deleted": True},
+    }
+
+
+@router.post("/{key_id}/rotate", response_model=DataResponse[ApiKeyCreateResponse])
+def rotate_key(
+    key_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(Role.ADMIN, Role.AUDITOR)),
+) -> dict[str, Any]:
+    """轮换 API Key：创建新 Key 并自动吊销旧 Key，明文仅返回一次."""
+    result = rotate_api_key(db=db, key_id=key_id, tenant_id=user.tenant_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API Key not found",
+        )
+    new_key, plain_key = result
+    return {
+        "code": 0,
+        "message": "ok",
+        "data": {
+            **new_key.to_dict(),
+            "key": plain_key,
+        },
     }
 
 

@@ -12,6 +12,7 @@ export default function NavBar({ showLogout = true }: NavBarProps) {
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + '/')
   const canApprove = role === 'admin' || role === 'auditor'
+  const isAdmin = role === 'admin'
 
   const links = [
     { path: '/dashboard', label: '工作台' },
@@ -21,6 +22,10 @@ export default function NavBar({ showLogout = true }: NavBarProps) {
     { path: '/audit', label: '审计日志' },
     ...(canApprove ? [{ path: '/approvals', label: '人工审批' }] : []),
     ...(canApprove ? [{ path: '/reflections', label: '错误自省' }] : []),
+    ...(isAdmin ? [{ path: '/users', label: '用户管理' }] : []),
+    ...(isAdmin ? [{ path: '/api-keys', label: 'API Key' }] : []),
+    ...(isAdmin ? [{ path: '/im-user-mappings', label: 'IM 映射' }] : []),
+    ...(isAdmin ? [{ path: '/settings', label: '系统设置' }] : []),
   ]
 
   return (

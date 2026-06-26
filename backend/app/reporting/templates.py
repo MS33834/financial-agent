@@ -45,11 +45,23 @@ CashTemplate = {
     ],
 }
 
-TEMPLATE_REGISTRY: dict[str, dict[str, Any]] = {
-    "profit": ProfitTemplate,
-    "balance": BalanceTemplate,
-    "cash": CashTemplate,
-}
+TEMPLATE_REGISTRY: dict[str, dict[str, Any]] = {}
+
+
+def register_template(name: str, template: dict[str, Any]) -> None:
+    """注册报告模板.
+
+    Args:
+        name: 模板名称，如 profit/balance/cash。
+        template: 模板字典，需包含 title、summary、sections 字段。
+    """
+    TEMPLATE_REGISTRY[name] = template
+
+
+# 注册内置模板
+register_template("profit", ProfitTemplate)
+register_template("balance", BalanceTemplate)
+register_template("cash", CashTemplate)
 
 
 def _period_label(period: str) -> str:
@@ -76,17 +88,25 @@ def _format_number(value: float | None) -> str:
     return f"{_format_value(value):,.2f}"
 
 
-def render_report(report_type: str, data: dict[str, Any]) -> dict[str, Any]:
+def render_report(
+    report_type: str,
+    data: dict[str, Any],
+    templates: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """根据报告类型和指标数据渲染报告内容.
 
     Args:
         report_type: 报告类型，如 profit/balance/cash。
         data: 包含 year、period 及各指标数值的字典。
+        templates: 自定义模板字典，会覆盖默认 TEMPLATE_REGISTRY 中的同名模板。
 
     Returns:
         结构化的报告内容字典。
     """
-    template = TEMPLATE_REGISTRY.get(report_type)
+    registry = {**TEMPLATE_REGISTRY}
+    if templates is not None:
+        registry.update(templates)
+    template = registry.get(report_type)
     if template is None:
         return {
             "title": f"自定义报告（{report_type}）",

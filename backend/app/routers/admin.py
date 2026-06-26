@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 
-from app.config import reload_settings
+from app.config import get_settings, reload_settings
 from app.core.roles import Role
 from app.dependencies import require_abac_permission, require_role
 from app.models.user import User
@@ -55,3 +55,49 @@ def reload_config(
         message="Configuration reloaded",
         data=safe_config,
     )
+
+
+class ConfigResponse(BaseModel):
+    """系统配置只读响应."""
+
+    code: int = Field(default=0, description="业务状态码")
+    message: str = Field(default="ok", description="提示信息")
+    data: dict[str, Any] = Field(default_factory=dict, description="非敏感配置项")
+
+
+@router.get(
+    "/config",
+    response_model=ConfigResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_config(
+    user: User = Depends(require_role(Role.ADMIN)),
+) -> ConfigResponse:
+    """返回非敏感的系统配置项，供管理后台只读展示.
+
+    敏感信息（密钥、密码、Token 等）一律不返回。
+    """
+    _ = user  # 仅做权限校验，未直接使用
+    settings = get_settings()
+    safe_config = {
+        "app_name": settings.app_name,
+        "app_env": settings.app_env,
+        "debug": settings.debug,
+        "log_level": settings.log_level,
+        "task_backend": settings.task_backend,
+        "storage_backend": settings.storage_backend,
+        "text2sql_backend": settings.text2sql_backend,
+        "llm_provider": settings.llm_provider,
+        "ollama_host": settings.ollama_host,
+        "ollama_model": settings.ollama_model,
+        "agent_intent_mode": settings.agent_intent_mode,
+        "agent_llm_model": settings.agent_llm_model,
+        "rag_chunk_size": settings.rag_chunk_size,
+        "rag_top_k": settings.rag_top_k,
+        "rate_limit_enabled": settings.rate_limit_enabled,
+        "rate_limit_max_requests": settings.rate_limit_max_requests,
+        "rate_limit_window_seconds": settings.rate_limit_window_seconds,
+        "redis_configured": bool(settings.redis_url),
+        "celery_configured": bool(settings.celery_broker_url),
+    }
+    return ConfigResponse(code=0, message="ok", data=safe_config)

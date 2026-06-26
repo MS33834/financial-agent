@@ -57,8 +57,20 @@ class ApiKey(UUIDBase):
     last_used_at: Mapped[datetime | None] = mapped_column(
         sa.DateTime(timezone=True), nullable=True, comment="最后使用时间"
     )
+    first_used_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True, comment="首次使用时间"
+    )
+    usage_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, comment="累计调用次数"
+    )
     expires_at: Mapped[datetime | None] = mapped_column(
         sa.DateTime(timezone=True), nullable=True, comment="过期时间"
+    )
+    rotated_from: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="轮换前的旧 Key ID（仅对新 Key 记录）",
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="api_keys")
@@ -84,7 +96,10 @@ class ApiKey(UUIDBase):
             "scopes": self.scopes or [],
             "is_active": self.is_active,
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+            "first_used_at": self.first_used_at.isoformat() if self.first_used_at else None,
+            "usage_count": self.usage_count,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "rotated_from": self.rotated_from,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

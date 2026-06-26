@@ -71,6 +71,8 @@
 | 审计日志 | `app/services/audit_service.py`, `app/models/audit_log.py` | 全链路操作记录、不可篡改日志 |
 | Agent 运行时 | `app/agent_runtime/` | LangGraph 状态机、意图识别、工具调用 |
 | IM 集成 | `app/im/` | 钉钉/飞书/企业微信机器人接入 |
+| 通知服务 | `notification/` | 邮件/IM/站内信多渠道通知，审批结果与异常告警推送 |
+| RAG 检索 | `app/text2sql/`、`vanna_engine/` | Vanna + ChromaDB 向量检索，PostgreSQL 回退查询，NL2SQL 上下文增强 |
 
 ## 4. 数据流
 
@@ -151,3 +153,74 @@
 | 接入 Dify | 通过 `DIFY_TOOL_API_KEY` 暴露工具 API 供 Dify 调用 |
 | 更多数据源 | 扩展 `app/parser/` 下的解析器即可 |
 | 审批流程自定义 | 在 `approval_service.py` 中扩展状态机 |
+
+## 8. 模块边界与依赖关系
+
+系统采用**分层依赖、单向调用**原则，禁止反向依赖与循环依赖，确保模块可独立演进与测试。
+
+### 8.1 分层依赖规则
+
+```text
+前端 (frontend/src)
+    │ HTTP / JSON
+    ▼
+API 层 (app/routers/*)        ← 仅做参数校验、鉴权、编排，不含业务逻辑
+    │
+    ▼
+业务服务层 (app/services/*)    ← 领域逻辑、事务编排、状态机
+    │
+    ▼
+引擎 / 适配层                  ← 文档解析、Text2SQL、报告渲染、Agent 运行时
+ (app/parser/, app/text2sql/, app/reporting/, app/agent_runtime/, vanna_engine/)
+    │
+    ▼
+数据访问层 (app/models/*, app/database.py)  ← ORM 模型与会话
+    │
+    ▼
+基础设施 (PostgreSQL / Redis / MinIO / Ollama / Dify)
+```
+
+依赖方向自上而下：上层可依赖下层，下层不得反向引用上层。`routers` 不得被 `services` / `models` 反向导入。
+
+### 8.2 模块依赖矩阵
+
+| 模块 | 依赖上游（内部） | 依赖下游（基础设施） | 被谁调用 |
+|------|------------------|----------------------|----------|
+| Auth | security、models/user | PostgreSQL | 前端、所有需鉴权的路由 |
+| Documents | services/document_service、storage | PostgreSQL、MinIO、Celery | 前端、Dify Tools |
+| Queries (NL2SQL) | text2sql、vanna_engine、sql_sandbox | PostgreSQL、Ollama | 前端、Agent、Dify Tools |
+| Reports | services/report_service、reporting | PostgreSQL、MinIO | 前端、Dify Tools |
+| Approvals | services/approval_service、notification | PostgreSQL、Redis | 前端、IM |
+| Agent | agent_runtime、text2sql、reporting | PostgreSQL、Ollama、Redis | 前端 |
+| Notification | notification/channels | SMTP、IM Webhook、PostgreSQL | Approvals、Worker、审计告警 |
+| Audit | services/audit_service、models/audit_log | PostgreSQL | 所有写操作（中间件织入） |
+| Worker (Celery) | services/*、shared | PostgreSQL、Redis、MinIO | 被路由通过任务队列触发 |
+
+### 8.3 共享契约
+
+- `shared/` 模块提供跨进程的**纯数据契约**（`constants.py` 枚举、`events.py` 事件定义、`schemas.py` Pydantic 模型），不含业务逻辑，可被 `backend` 与 `workers` 同时导入，避免事件 / 状态语义在两端漂移。
+- 事件主题（`EVENT_TOPIC_*`）统一在 `shared/constants.py` 定义，作为消息总线的寻址契约。
+
+### 8.4 边界约束
+
+- **API 层无状态**：`routers` 不持有可变状态，所有状态写入数据库或 Redis。
+- **引擎层可替换**：`Text2SQL`（规则 / Vanna）、`LLM`（Ollama / Dify）、`Storage`（MinIO / 本地）均通过抽象后端切换，业务服务层不感知具体实现。
+- **审计无侵入**：审计日志通过中间件 / 装饰器织入，业务模块无需显式调用即可记录关键写操作。
+
+## 9. 技术选型说明
+
+| 技术 | 选型理由 |
+|------|----------|
+| **FastAPI** | 原生 async、自动生成交互式 OpenAPI 文档（`/docs`）、Pydantic 校验与统一响应模型天然契合；性能足以支撑财务报告类中低并发场景，开发效率高。 |
+| **SQLAlchemy 2.0** | 成熟的 ORM，支持类型化查询与同步 / 异步引擎；与 Alembic 配合实现可审计的数据库迁移；多租户场景下通过 `tenant_id` 过滤器统一注入。 |
+| **Celery** | 文档解析、报告生成等重计算任务需异步化以避免阻塞 API；Celery 配合 Redis broker 提供任务重试、优先级与监控；独立 Worker 进程便于水平扩缩容与优雅关闭。 |
+| **Dify（可选）** | 提供可视化 LLM 应用编排与工具调用流程，降低非开发人员调整 Agent 流程的门槛；通过 `/api/v1/dify/tools/*` 暴露内部能力（NL2SQL、建报告、审批）供 Dify 编排，做到"接入即增强、不接入系统仍可用规则后端"。 |
+| **Ollama（本地 LLM）** | 私有化部署刚需：财务数据敏感，禁止外发第三方 LLM；Ollama 支持本地运行开源模型，零数据外泄，配合 `OLLAMA_MODEL` 可灵活切换模型规模。 |
+
+补充选型：
+
+- **PostgreSQL**：金融场景对事务一致性要求高，JSONB + 行级安全适合结构化与半结构化财务数据。
+- **Redis**：缓存、分布式限流、Celery broker 复用，降低组件数量。
+- **MinIO**：S3 兼容的对象存储，私有化部署原始财务文件，满足合规留存要求。
+- **LangGraph**：Agent 运行时以显式状态机建模多轮对话与工具调用，便于错误恢复与可观测。
+

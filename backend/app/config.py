@@ -126,6 +126,14 @@ class Settings(BaseSettings):
     )
     mineru_timeout: int = Field(default=120, description="Mineru 请求超时（秒）")
 
+    # 通知服务（邮件 SMTP）
+    smtp_host: str = Field(default="", description="SMTP 服务器地址")
+    smtp_port: int = Field(default=587, description="SMTP 端口")
+    smtp_username: str = Field(default="", description="SMTP 用户名")
+    smtp_password: str = Field(default="", description="SMTP 密码")
+    smtp_from: str = Field(default="", description="发件人邮箱地址")
+    smtp_use_tls: bool = Field(default=True, description="是否启用 TLS")
+
     # 业务
     default_page_size: int = Field(default=20, description="默认分页大小")
     max_page_size: int = Field(default=100, description="最大分页大小")

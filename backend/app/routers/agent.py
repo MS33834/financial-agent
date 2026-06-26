@@ -22,6 +22,8 @@ class AgentChatRequest(BaseModel):
     """Agent 对话请求."""
 
     question: str = Field(description="用户自然语言问题", min_length=1)
+    conversation_id: str | None = Field(default=None, description="对话 ID，用于多轮对话追踪")
+    history: list[dict[str, Any]] = Field(default_factory=list, description="历史对话消息列表")
 
 
 @router.post("/chat", response_model=DataResponse[dict[str, Any]])
@@ -54,6 +56,8 @@ def agent_chat(
         tenant_id=tenant_id,
         user_id=str(user.id),
         db=db,
+        conversation_id=request.conversation_id,
+        history=request.history,
     )
 
     has_error = result.get("error") is not None

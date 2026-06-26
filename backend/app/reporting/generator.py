@@ -18,13 +18,19 @@ class ReportGenerationError(Exception):
 class ReportGenerator:
     """基于财务指标生成报告的引擎."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        custom_templates: dict[str, Any] | None = None,
+    ) -> None:
         """初始化生成器.
 
         Args:
             db: 数据库会话。
+            custom_templates: 自定义模板字典，会覆盖默认 TEMPLATE_REGISTRY 中的同名模板。
         """
         self.db = db
+        self.custom_templates = custom_templates or {}
 
     def generate(self, report: Report) -> dict[str, Any]:
         """根据报告参数生成内容.
@@ -59,7 +65,11 @@ class ReportGenerator:
             "cash_flow_operating": financial.cash_flow_operating,
         }
 
-        content = render_report(report.report_type, data)
+        content = render_report(
+            report.report_type,
+            data,
+            templates=self.custom_templates,
+        )
         return {
             "content": content,
             "summary": content["summary"],

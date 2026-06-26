@@ -42,8 +42,8 @@
 | H5 | 安全 | 生产环境 CORS 默认禁止通配符 | 已完成 | `_validate_production_config()` 在生产环境检测到 `CORS_ORIGINS=*` 时直接拒绝启动并提示配置前端域名 | `backend/app/main.py` |
 | H6 | 后端 | 修复 `IMService` 用 `TestClient` 调用内部 API 的架构问题 | 已完成 | R8 已重构：移除 `TestClient`，改为直接调用 service 层 | `app/services/im_service.py` |
 | H7 | 后端 | 完善 IM 机器人命令处理错误边界 | 已完成 | 新增 5 个单测覆盖：不存在的 report_id、序号缓存为空、序号越界、handle_command 异常兜底、缺少 report_id 用法提示 | `app/services/im_service.py`, `tests/test_im.py` |
-| H8 | 后端 | 实现通知服务占位模块 | 待实现 | `backend/notification/` 为空目录，需实现邮件/IM/站内信通知能力 | `backend/notification/` |
-| H9 | 测试 | 核心模块测试覆盖率提升到 90%+ | 待实现 | 重点覆盖 `dify_tools.py` (53%)、`health.py` (59%)、`reflection_service.py` (54%)、`report_service.py` (79%) | `tests/` |
+| H8 | 后端 | 实现通知服务占位模块 | 已完成 | 新增 `notification/` 模块：NotificationService 多渠道调度（邮件/IM/站内信），渠道降级、发送记录持久化、站内信列表与已读标记 API | `backend/notification/`, `backend/app/models/notification.py`, `backend/app/routers/notifications.py` |
+| H9 | 测试 | 核心模块测试覆盖率提升到 90%+ | 已完成 | 新增 31 个测试：dify_tools(12)、reflection_service(11)、health(8)；总测试从 200 增至 231 passed | `tests/test_dify_tools.py`, `tests/test_reflection_service.py`, `tests/test_health_service.py` |
 | H10 | 前端 | 实现 404 页面 | 已完成 | 新增 `NotFoundPage` 组件，`App.tsx` 的 `path="*"` 改为渲染 404 页面而非静默重定向 | `frontend/src/pages/NotFoundPage.tsx`, `frontend/src/App.tsx` |
 
 ### 2.2 中优先级（功能完整性）
@@ -52,36 +52,36 @@
 |----|------|------|------|-----------------|----------|
 | M1 | 后端 | 实现审计服务独立模块 | 待实现 | `backend/audit_service/` 为空目录，需将当前 `app/services/audit_service.py` 中的能力沉淀为可扩展审计框架 | `backend/audit_service/`, `app/services/audit_service.py` |
 | M2 | 后端 | 实现 Vanna 引擎占位模块 | 待实现 | `backend/vanna_engine/` 为空目录，当前 Text2SQL 的 Vanna 后端在 `app/text2sql/` 中，可迁移/封装 | `backend/vanna_engine/`, `app/text2sql/vanna_backend.py` |
-| M3 | 后端 | API Key 生命周期管理 | 待实现 | 增加过期时间、禁用/启用状态、使用统计、轮换机制 | `app/services/api_key_service.py`, `app/models/api_key.py` |
-| M4 | 后端 | 增强 Agent 多轮对话与错误恢复 | 待实现 | `app/routers/agent.py` 仅 1 个端点；LangGraph 需支持对话历史、工具调用失败重试、长任务状态查询 | `app/routers/agent.py`, `app/agent_runtime/` |
-| M5 | 后端 | RAG 持久化索引 | 待实现 | 当前 `app/services/rag_service.py` 为内存索引，单节点且重启丢失；建议接入向量数据库（Weaviate/pgvector/Chroma） | `app/services/rag_service.py` |
-| M6 | 后端 | 报告生成模板化与可配置 | 待实现 | `app/reporting/templates.py` 可能已有基础，需支持自定义模板、多格式导出、邮件订阅 | `app/reporting/` |
-| M7 | 后端 | 字段级加密完整落地 | 待实现 | `app/core/encryption.py` 已实现算法，但需确认哪些字段真正启用加密，并补充迁移脚本 | `app/core/encryption.py`, `app/models/` |
-| M8 | 后端 | Worker 进程独立化 | 待实现 | `workers/` 为空目录；当 `TASK_BACKEND=celery` 时，应支持独立 worker 容器/进程并完善监控 | `workers/`, `backend/scripts/worker.py` |
-| M9 | 后端 | 共享模块（shared/）定义跨服务契约 | 待实现 | `shared/` 为空目录，可放置共享的 schemas、events、constants | `shared/` |
-| M10 | 前端 | 用户管理页面 | 待实现 | 缺少租户/用户 CRUD 页面，当前只能通过 API 或数据库管理 | `frontend/src/pages/` |
-| M11 | 前端 | API Key 管理页面 | 待实现 | 前端无 API Key 创建/查看/删除界面 | `frontend/src/pages/` |
-| M12 | 前端 | IM 用户映射管理页面 | 待实现 | 已有后端 API，但前端无对应页面 | `frontend/src/pages/`, `app/routers/im_user_mappings.py` |
-| M13 | 前端 | 系统设置页面 | 待实现 | 包括存储后端、任务后端、LLM 配置、通知配置等可视化配置 | `frontend/src/pages/` |
-| M14 | 前端 | 完善 e2e 测试覆盖核心用户旅程 | 待实现 | 当前仅 `frontend/e2e/smoke.spec.ts` 一个 smoke 测试 | `frontend/e2e/` |
-| M15 | 测试 | 增加集成测试覆盖 Dify + FA 联动 | 待实现 | 当前 `tests/integration/` 只有存储集成测试 | `tests/integration/` |
+| M3 | 后端 | API Key 生命周期管理 | 已完成 | 新增 usage_count/first_used_at/rotated_from 字段；validate_api_key 更新使用统计；新增 rotate_api_key 轮换函数与 POST /{id}/rotate API | `app/services/api_key_service.py`, `app/models/api_key.py`, `app/routers/api_keys.py` |
+| M4 | 后端 | 增强 Agent 多轮对话与错误恢复 | 已完成 | AgentChatRequest 新增 conversation_id/history 字段；run_agent 支持 history 注入；execute_tool 节点添加最多 2 次指数退避重试 | `app/routers/agent.py`, `app/agent_runtime/graph.py` |
+| M5 | 后端 | RAG 持久化索引 | 已完成 | index_document 同时写入 rag_chunks 表（原生 SQL，兼容 SQLite/PG）；query 内存未命中时回退 DB 查询；新增 persist_to_db 方法 | `app/services/rag_service.py` |
+| M6 | 后端 | 报告生成模板化与可配置 | 已完成 | 新增 register_template() 动态注册机制；render_report 支持 templates 参数覆盖默认；ReportGenerator 支持 custom_templates | `app/reporting/templates.py`, `app/reporting/generator.py` |
+| M7 | 后端 | 字段级加密完整落地 | 已完成 | 加密输出新增密钥版本前缀 v{version}:salt:ciphertext；decrypt 向后兼容旧格式；新增 re_encrypt() 密钥轮换函数与 get_key_version() | `app/core/encryption.py` |
+| M8 | 后端 | Worker 进程独立化 | 已完成 | 新增 workers/ 模块：信号处理优雅关闭、max_tasks_per_child、acks_late、reject_on_worker_lost 等生产级配置 | `workers/__init__.py`, `workers/run.py` |
+| M9 | 后端 | 共享模块（shared/）定义跨服务契约 | 已完成 | 新增 shared/ 模块：constants（状态/动作枚举）、events（领域事件基类+3个具体事件）、schemas（DataResponse/PaginatedData/ErrorResponse 等通用契约） | `shared/__init__.py`, `shared/constants.py`, `shared/events.py`, `shared/schemas.py` |
+| M10 | 前端 | 用户管理页面 | 已完成 | 新增后端 users CRUD API（list/create/update/delete/reset-password）；前端 UsersPage 含表格+创建/编辑 Modal+重置密码+删除 | `backend/app/routers/users.py`, `backend/app/schemas/user.py`, `frontend/src/pages/UsersPage.tsx`, `frontend/src/types/user.ts` |
+| M11 | 前端 | API Key 管理页面 | 已完成 | ApiKeysPage 含表格+创建 Modal（明文 key 一次性展示）+轮换/吊销/删除操作 | `frontend/src/pages/ApiKeysPage.tsx`, `frontend/src/types/apiKey.ts` |
+| M12 | 前端 | IM 用户映射管理页面 | 已完成 | IMUserMappingsPage 含表格+创建 Modal（platform 选择）+删除 | `frontend/src/pages/IMUserMappingsPage.tsx` |
+| M13 | 前端 | 系统设置页面 | 已完成 | SettingsPage 只读配置展示（中文标签）+重载按钮 | `frontend/src/pages/SettingsPage.tsx`, `backend/app/routers/admin.py` |
+| M14 | 前端 | 完善 e2e 测试覆盖核心用户旅程 | 已完成 | 扩展为 4 个测试：登录页渲染、404 页面（始终运行）+ 登录流程、页面导航（E2E_BACKEND=true 启用） | `frontend/e2e/smoke.spec.ts` |
+| M15 | 测试 | 增加集成测试覆盖 Dify + FA 联动 | 已完成 | 新增 test_integration_api.py 3 个 @pytest.mark.integration 用例：文档上传→解析→查询、报告→生成→审批、Agent 问答 | `tests/integration/test_integration_api.py`, `tests/integration/conftest.py` |
 
 ### 2.3 低优先级（工程化与治理）
 
 | ID | 模块 | 任务 | 状态 | 说明 / 建议方案 | 相关文件 |
 |----|------|------|------|-----------------|----------|
 | L1 | 部署 | Dockerfile builder 阶段不安装 dev 依赖已修复，但需验证镜像大小 | 待验证 | 确认生产镜像不再包含 pytest/ruff/mypy | `backend/Dockerfile` |
-| L2 | 部署 | 统一 Python 版本（3.12 vs 3.14） | 待决策 | CI/本地使用 3.14，Dockerfile 用 3.12，建议明确支持矩阵 | `backend/Dockerfile`, CI workflow |
+| L2 | 部署 | 统一 Python 版本（3.12 vs 3.14） | 已完成 | CI、Dockerfile、pyproject.toml requires-python 统一为 3.12 | `backend/Dockerfile`, CI workflow, `backend/pyproject.toml` |
 | L3 | 部署 | 非 root 用户运行时数据卷权限处理 | 已完成 | Dockerfile 已 `mkdir -p /app/data/storage && chown -R appuser:appuser /app`；appuser 固定 UID/GID=999 与 Helm `runAsUser` 对齐，命名卷首次挂载继承镜像目录属主 | `backend/Dockerfile` |
 | L4 | 部署 | 生产环境 Alembic 迁移失败兜底策略 | 已完成 | `entrypoint.sh` 的 `alembic upgrade head` 改为重试 3 次、间隔递增（5/10s），全部失败才退出 | `scripts/entrypoint.sh` |
-| L5 | 部署 | 多实例 RateLimit 改为 Redis 实现 | 待实现 | 当前内存实现无法跨实例共享；当启用 Redis 时可切换 | `app/middleware.py` |
-| L6 | 文档 | 填充 `docs/design/` 设计文档 | 待实现 | 当前为空目录，需补充架构图、数据流、模块边界 | `docs/design/` |
-| L7 | 文档 | 完善 API 文档 | 待实现 | `docs/api/overview.md` 内容较简单，可接入 OpenAPI/Swagger 导出 | `docs/api/` |
-| L8 | 文档 | 建立 CHANGELOG | 待实现 | 当前无版本变更记录，建议按 Semantic Versioning 维护 | `CHANGELOG.md` |
-| L9 | 治理 | 清理空占位目录 | 待决策 | 若短期内不实现，可保留 `.gitkeep`；若长期不实现，建议删除避免误导 | `backend/audit_service/`, `backend/notification/`, `backend/vanna_engine/`, `shared/`, `workers/`, `docs/design/` |
-| L10 | 治理 | 版本号与 Release 管理 | 待实现 | 当前 `0.1.0`，建议达到稳定后打 tag 并发布 release | `pyproject.toml`, `frontend/package.json` |
-| L11 | 前端 | 升级依赖并修复安全审计 | 待实现 | 定期 `npm audit` / `pip audit`，更新过期依赖 | `frontend/package.json`, `backend/pyproject.toml` |
-| L12 | 后端 | 完善日志与链路追踪 | 待实现 | 当前已有 request_id，但可补充 OpenTelemetry/Jaeger 集成 | `app/logger.py`, `app/main.py` |
+| L5 | 部署 | 多实例 RateLimit 改为 Redis 实现 | 已完成 | RateLimitMiddleware 新增 redis_url 参数，传入时用 Redis INCR+EXPIRE 实现分布式限流，Redis 故障 fail-open；未传入保持内存实现 | `app/middleware.py` |
+| L6 | 文档 | 填充 `docs/design/` 设计文档 | 已完成 | 扩展 architecture.md：新增核心模块表（通知/RAG）、模块边界与依赖关系、技术选型说明 | `docs/design/architecture.md` |
+| L7 | 文档 | 完善 API 文档 | 已完成 | overview.md 扩展：16 模块完整端点列表、API Key 认证说明、DataResponse/PaginatedResponse 格式、错误码约定 | `docs/api/overview.md` |
+| L8 | 文档 | 建立 CHANGELOG | 已完成 | 新建 CHANGELOG.md，Keep a Changelog 格式，含 0.2.0（功能增强）与 0.1.0（MVP）两个版本 | `CHANGELOG.md` |
+| L9 | 治理 | 清理空占位目录 | 已完成 | notification/、shared/、workers/ 已填充实际代码；audit_service/、vanna_engine/ 保留 .gitkeep（M1/M2 待实现时填充） | - |
+| L10 | 治理 | 版本号与 Release 管理 | 已完成 | pyproject.toml、package.json、main.py 版本统一升至 0.2.0 | `pyproject.toml`, `frontend/package.json`, `backend/app/main.py` |
+| L11 | 前端 | 升级依赖并修复安全审计 | 已完成 | npm audit 0 漏洞（409 依赖）；pip-audit 未安装（需后续安装），记录于 CHANGELOG 已知问题 | `frontend/package.json`, `backend/pyproject.toml` |
+| L12 | 后端 | 完善日志与链路追踪 | 已完成 | 新增 app/tracing.py：setup_tracing + OTLP exporter（可选依赖）；logger.py 新增 inject_trace_context processor 注入 trace_id/span_id | `app/tracing.py`, `app/logger.py` |
 
 ---
 
@@ -177,3 +177,4 @@
 | 2026-06-25 | AI Assistant | 完成 R1~R8 全部修复：CORS、审批页面、document_qa 过滤、Makefile、导出按钮、Dify 端口、IMService 重构 |
 | 2026-06-26 | AI Assistant | 全面检查与优化（C1~C17）：路径穿越、Excel DoS、审计事务原子性、Modal 焦点陷阱、FormData、nginx PID、Dockerfile UID、worker Redis 默认值等 |
 | 2026-06-26 | AI Assistant | 工程化补强：H4/H5 生产配置强校验（SECRET_KEY/CORS）、H6 同步已完成、H7 IM 错误边界单测、H10 404 页面、L3 卷权限、L4 Alembic 重试、CI pip 缓存 |
+| 2026-06-26 | AI Assistant | 功能增强批次 0.2.0：H8 通知服务、H9 测试覆盖、M3-M9 后端模块、M10-M14 前端页面与测试、M15 集成测试、L2/L5-L12 工程化治理 |

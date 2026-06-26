@@ -8,6 +8,7 @@ from app.models.document import Document
 from app.models.error_reflection import ErrorReflection
 from app.models.financial_report import FinancialReport
 from app.models.im_user_mapping import IMUserMapping
+from app.models.notification import Notification
 from app.models.report import Report
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -24,4 +25,5 @@ __all__ = [
     "AccessPolicy",
     "IMUserMapping",
     "ApiKey",
+    "Notification",
 ]

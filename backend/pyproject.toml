@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "financial-agent-backend"
-version = "0.1.0"
+version = "0.2.0"
 description = "企业级财务智能体后端服务"
 readme = { text = "企业级财务智能体后端服务", content-type = "text/plain" }
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [
     { name = "Financial Agent Team" }
@@ -96,3 +96,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+markers = [
+    "integration: 集成测试，需要真实数据库连接等外部依赖，默认在普通测试运行时跳过",
+]

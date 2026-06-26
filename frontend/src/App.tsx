@@ -12,6 +12,10 @@ const AuditPage = lazy(() => import('./pages/AuditPage.tsx'))
 const AgentChatPage = lazy(() => import('./pages/AgentChatPage.tsx'))
 const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage.tsx'))
 const ReflectionsPage = lazy(() => import('./pages/ReflectionsPage.tsx'))
+const UsersPage = lazy(() => import('./pages/UsersPage.tsx'))
+const ApiKeysPage = lazy(() => import('./pages/ApiKeysPage.tsx'))
+const IMUserMappingsPage = lazy(() => import('./pages/IMUserMappingsPage.tsx'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.tsx'))
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -79,6 +83,38 @@ function App() {
             element={
               <PrivateRoute>
                 <ReflectionsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <PrivateRoute>
+                <UsersPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/api-keys"
+            element={
+              <PrivateRoute>
+                <ApiKeysPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/im-user-mappings"
+            element={
+              <PrivateRoute>
+                <IMUserMappingsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <PrivateRoute>
+                <SettingsPage />
               </PrivateRoute>
             }
           />

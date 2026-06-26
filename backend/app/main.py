@@ -29,9 +29,11 @@ from app.routers import (
     health,
     im,
     im_user_mappings,
+    notifications,
     queries,
     reflections,
     reports,
+    users,
 )
 
 logger = get_logger(__name__)
@@ -102,7 +104,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version="0.2.0",
         description="企业级财务智能体后端 API",
         lifespan=lifespan,
     )
@@ -185,9 +187,11 @@ def create_app() -> FastAPI:
     app.include_router(dify_tools.router)
     app.include_router(im.router)
     app.include_router(im_user_mappings.router)
+    app.include_router(notifications.router)
     app.include_router(api_keys.router)
     app.include_router(agent.router)
     app.include_router(reflections.router)
+    app.include_router(users.router)
 
     # Prometheus 指标端点（标准 /metrics，不进入 API 文档）
     @app.get("/metrics", include_in_schema=False)

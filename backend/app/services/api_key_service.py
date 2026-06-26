@@ -110,7 +110,7 @@ def delete_api_key(db: Session, key_id: str, tenant_id: str) -> bool:
 
 
 def validate_api_key(db: Session, api_key_value: str) -> ApiKey | None:
-    """校验 API Key 是否有效，更新最后使用时间，返回 Key 记录."""
+    """校验 API Key 是否有效，更新使用统计，返回 Key 记录."""
     key_hash = _hash_key(api_key_value)
     key_record = (
         db.query(ApiKey)
@@ -127,7 +127,11 @@ def validate_api_key(db: Session, api_key_value: str) -> ApiKey | None:
     if key_record.expires_at is not None and key_record.expires_at < now:
         return None
 
+    # 更新使用统计：首次使用时间 + 累计次数 + 最后使用时间
+    if key_record.first_used_at is None:
+        key_record.first_used_at = now
     key_record.last_used_at = now
+    key_record.usage_count = (key_record.usage_count or 0) + 1
     db.commit()
     return key_record
 
@@ -149,3 +153,45 @@ def get_api_key_by_id(db: Session, key_id: str, tenant_id: str | None = None) ->
     if tenant_id is not None:
         query = query.filter(ApiKey.tenant_id == tenant_id)
     return query.first()
+
+
+def rotate_api_key(
+    db: Session,
+    key_id: str,
+    tenant_id: str,
+) -> tuple[ApiKey, str] | None:
+    """轮换 API Key.
+
+    创建一个新 Key（继承旧 Key 的名称/scopes/过期策略），同时吊销旧 Key。
+    新 Key 记录 rotated_from 指向旧 Key ID，便于审计追溯。
+
+    Returns:
+        (新 ApiKey 对象, 明文 key) 或 None（旧 Key 不存在）。
+    """
+    old_key = (
+        db.query(ApiKey)
+        .filter(ApiKey.id == key_id, ApiKey.tenant_id == tenant_id)
+        .first()
+    )
+    if old_key is None:
+        return None
+
+    plain_key = generate_api_key()
+    new_key = ApiKey(
+        tenant_id=old_key.tenant_id,
+        user_id=old_key.user_id,
+        name=old_key.name,
+        key_hash=_hash_key(plain_key),
+        scopes=old_key.scopes,
+        is_active="Y",
+        expires_at=old_key.expires_at,
+        rotated_from=old_key.id,
+    )
+    db.add(new_key)
+
+    # 吊销旧 Key
+    old_key.is_active = "N"
+
+    db.commit()
+    db.refresh(new_key)
+    return new_key, plain_key

@@ -10,8 +10,11 @@ import math
 from typing import Any
 
 import httpx
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.database import engine
 
 
 class RagUnavailableError(Exception):
@@ -106,6 +109,19 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+# rag_chunks 表建表语句（兼容 PostgreSQL 与 SQLite）
+_CREATE_TABLE_SQL = """\
+CREATE TABLE IF NOT EXISTS rag_chunks (
+    tenant_id TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    chunk TEXT NOT NULL,
+    embedding TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, document_id, chunk_index)
+)
+"""
+
+
 class RagService:
     """轻量 RAG 服务：切分、嵌入、检索."""
 
@@ -134,6 +150,8 @@ class RagService:
             embedding = embed(chunk)
             entries.append({"chunk": chunk, "embedding": embedding})
         self._index[(tenant_id, document_id)] = entries
+        # M5: 持久化到数据库（增强层，失败不影响内存索引）
+        self._persist_chunks(tenant_id, document_id, entries)
 
     def query(
         self,
@@ -161,15 +179,22 @@ class RagService:
         candidates: list[tuple[str, dict[str, Any]]] = []
         if document_id is not None:
             key = (tenant_id, document_id)
-            if key not in self._index:
-                raise ValueError(f"文档 {document_id} 尚未建立索引")
-            candidates = [(document_id, entry) for entry in self._index[key]]
+            if key in self._index:
+                candidates = [(document_id, entry) for entry in self._index[key]]
+            else:
+                # M5: 内存索引未命中，回退查询数据库
+                candidates = self._query_db(tenant_id, document_id)
+                if not candidates:
+                    raise ValueError(f"文档 {document_id} 尚未建立索引")
         else:
             for (doc_tenant, doc_id), entries in self._index.items():
                 if doc_tenant != tenant_id:
                     continue
                 for entry in entries:
                     candidates.append((doc_id, entry))
+            # M5: 内存索引未命中，回退查询数据库
+            if not candidates:
+                candidates = self._query_db(tenant_id, None)
 
         if not candidates:
             raise ValueError("未找到可检索的文档索引")
@@ -191,3 +216,115 @@ class RagService:
             "chunks": chunks,
             "document_id": best_doc_id,
         }
+
+    def _ensure_table(self) -> None:
+        """确保 rag_chunks 表存在（幂等操作）。"""
+        with engine.connect() as conn:
+            conn.execute(text(_CREATE_TABLE_SQL))
+            conn.commit()
+
+    def _persist_chunks(
+        self,
+        tenant_id: str,
+        document_id: str,
+        entries: list[dict[str, Any]],
+    ) -> None:
+        """将 chunk 数据写入数据库（增强层，失败不影响内存索引）。"""
+        try:
+            self._ensure_table()
+            with engine.connect() as conn:
+                # 先删除该文档的旧索引
+                conn.execute(
+                    text(
+                        "DELETE FROM rag_chunks "
+                        "WHERE tenant_id = :tenant AND document_id = :doc"
+                    ),
+                    {"tenant": tenant_id, "doc": document_id},
+                )
+                for idx, entry in enumerate(entries):
+                    conn.execute(
+                        text(
+                            "INSERT INTO rag_chunks "
+                            "(tenant_id, document_id, chunk_index, chunk, embedding) "
+                            "VALUES (:tenant, :doc, :idx, :chunk, :embedding)"
+                        ),
+                        {
+                            "tenant": tenant_id,
+                            "doc": document_id,
+                            "idx": idx,
+                            "chunk": entry["chunk"],
+                            "embedding": json.dumps(entry["embedding"]),
+                        },
+                    )
+                conn.commit()
+        except Exception:
+            # 持久化失败不影响主流程，内存索引仍可用
+            pass
+
+    def _query_db(
+        self,
+        tenant_id: str,
+        document_id: str | None,
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """从数据库查询 chunk（内存索引未命中时的回退）。"""
+        candidates: list[tuple[str, dict[str, Any]]] = []
+        try:
+            self._ensure_table()
+            with engine.connect() as conn:
+                if document_id is not None:
+                    rows = conn.execute(
+                        text(
+                            "SELECT document_id, chunk, embedding FROM rag_chunks "
+                            "WHERE tenant_id = :tenant AND document_id = :doc"
+                        ),
+                        {"tenant": tenant_id, "doc": document_id},
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        text(
+                            "SELECT document_id, chunk, embedding FROM rag_chunks "
+                            "WHERE tenant_id = :tenant"
+                        ),
+                        {"tenant": tenant_id},
+                    ).fetchall()
+                for row in rows:
+                    doc_id = str(row[0])
+                    chunk = str(row[1])
+                    embedding = [float(x) for x in json.loads(row[2])]
+                    candidates.append((doc_id, {"chunk": chunk, "embedding": embedding}))
+        except Exception:
+            # 数据库查询失败不影响主流程
+            pass
+        return candidates
+
+    def persist_to_db(self, db: Session) -> None:
+        """将内存索引持久化到数据库。
+
+        Args:
+            db: 数据库会话，由调用方管理生命周期与提交。
+        """
+        db.execute(text(_CREATE_TABLE_SQL))
+        for (tenant_id, document_id), entries in self._index.items():
+            db.execute(
+                text(
+                    "DELETE FROM rag_chunks "
+                    "WHERE tenant_id = :tenant AND document_id = :doc"
+                ),
+                {"tenant": tenant_id, "doc": document_id},
+            )
+            for idx, entry in enumerate(entries):
+                db.execute(
+                    text(
+                        "INSERT INTO rag_chunks "
+                        "(tenant_id, document_id, chunk_index, chunk, embedding) "
+                        "VALUES (:tenant, :doc, :idx, :chunk, :embedding)"
+                    ),
+                    {
+                        "tenant": tenant_id,
+                        "doc": document_id,
+                        "idx": idx,
+                        "chunk": entry["chunk"],
+                        "embedding": json.dumps(entry["embedding"]),
+                    },
+                )
+        db.commit()
