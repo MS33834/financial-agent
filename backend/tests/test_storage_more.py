@@ -8,7 +8,7 @@
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, _patch, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -154,7 +154,7 @@ def test_local_download_wraps_oserror(tmp_path: Path) -> None:
 # ------------------------------------------------------------------
 
 
-def _patch_minio(fake_minio: MagicMock) -> _patch[MagicMock]:
+def _patch_minio(fake_minio: MagicMock) -> Any:
     """为延迟导入的 minio 提供 patch.
 
     app.storage.MinioStorageClient.__init__ 中使用了 ``from minio import Minio``，
