@@ -95,7 +95,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --cov=app --cov-report=term --cov-report=xml --cov-fail-under=90"
 markers = [
     "integration: 集成测试，需要真实数据库连接等外部依赖，默认在普通测试运行时跳过",
 ]

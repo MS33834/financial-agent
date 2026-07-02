@@ -67,6 +67,7 @@ htmlcov/
 *.db
 test-results/
 playwright-report/
+coverage.xml
 
 # Terraform / IaC
 *.tfstate
