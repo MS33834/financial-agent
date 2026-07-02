@@ -6,16 +6,14 @@ build_response (markdown / text)、send_message 主动推送。
 
 import base64
 import hashlib
-import hmac
 import json
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.im.feishu import FeishuBot, FeishuDecryptError
-
 
 ENCRYPT_KEY = "test-feishu-encrypt-key-32-char-long-xx"
 

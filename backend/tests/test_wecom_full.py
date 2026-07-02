@@ -7,13 +7,12 @@ build_response (markdown / text)、send_message 主动推送。
 import base64
 import struct
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.im.wecom import WeComBot, WeComDecryptError
-
 
 TOKEN = "test-wecom-token-xyz"
 ENCODING_AES_KEY = "GrmBxZ5RRwnsMVH3deD/+WL+VaSHWmDTVJLMuYid18M"
@@ -50,7 +49,7 @@ def _make_xml_with_encrypt(encrypt: str) -> bytes:
     return (
         f"<xml><ToUserName><![CDATA[corpid]]></ToUserName>"
         f"<Encrypt><![CDATA[{encrypt}]]></Encrypt></xml>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def _valid_headers(encrypt: str, raw_body: bytes) -> dict[str, str]:
@@ -79,7 +78,7 @@ def _compute_signature(timestamp: str, nonce: str, encrypt: str) -> str:
 
 def test_verify_signature_success() -> None:
     """正确签名应通过."""
-    plain = "<xml>hello</xml>".encode("utf-8")
+    plain = b"<xml>hello</xml>"
     encrypt = _build_encrypt(plain)
     raw_body = _make_xml_with_encrypt(encrypt)
     headers = _valid_headers(encrypt, raw_body)
@@ -167,7 +166,7 @@ def test_extract_encrypt_invalid_xml_returns_empty() -> None:
 
 def test_decrypt_success() -> None:
     """正确构造的密文应能解密为 xml 字符串."""
-    plain = "<xml>Hello</xml>".encode("utf-8")
+    plain = b"<xml>Hello</xml>"
     encrypt = _build_encrypt(plain)
     bot = _bot()
     result = bot.decrypt(encrypt)

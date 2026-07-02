@@ -10,7 +10,6 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.models.api_key import ApiKey
@@ -214,9 +213,11 @@ def test_rotate_api_key_returns_new_plain(
     record, old_plain = create_api_key(db_session, user, ApiKeyCreate(name="k1"))
     old_hash = record.key_hash
 
-    new_record, new_plain = rotate_api_key(
+    rotated = rotate_api_key(
         db_session, key_id=record.id, tenant_id=test_tenant.id
     )
+    assert rotated is not None
+    new_record, new_plain = rotated
     assert new_plain is not None
     assert new_plain != old_plain
     assert new_record.key_hash != old_hash

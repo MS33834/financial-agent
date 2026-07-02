@@ -6,7 +6,6 @@
 - IMServiceError 简单实例化
 """
 
-import pytest
 
 from app.im.commands import BotCommand
 from app.services.im_service import (
@@ -14,7 +13,6 @@ from app.services.im_service import (
     _format_service_error,
     _resolve_report_id_from_command,
 )
-
 
 # ------------------------------------------------------------------
 # _format_service_error

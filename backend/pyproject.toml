@@ -63,14 +63,14 @@ ai = [
 packages = ["app"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
 select = [
     "E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ARG",
 ]
-ignore = ["E501"]
+ignore = ["E501", "UP046"]
 
 [tool.ruff.lint.per-file-ignores]
 "app/routers/*.py" = ["B008", "ARG001"]
@@ -79,12 +79,13 @@ ignore = ["E501"]
 "app/main.py" = ["ARG001"]
 "app/models/*.py" = ["UP037"]
 "app/celery_app.py" = ["ARG001"]
+"tests/*.py" = ["ARG001"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

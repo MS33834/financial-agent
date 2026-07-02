@@ -1,7 +1,7 @@
 """IM 机器人基类与注册表（app.im.base）补全测试."""
 
-import json
 import urllib.error
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from app.im.base import (
@@ -92,13 +92,13 @@ def test_im_bot_registry_register_and_get() -> None:
 
     @IMBotRegistry.register("test-platform-xyz")
     class _Bot(BaseIMBot):
-        def verify_signature(self, payload: dict, headers: dict, raw_body=None):  # noqa: ARG002
+        def verify_signature(self, payload: dict[str, Any], headers: dict[str, str], raw_body: bytes | None = None) -> bool:  # noqa: ARG002
             return True
 
-        def parse_message(self, payload: dict) -> IMMessage:  # noqa: ARG002
+        def parse_message(self, payload: dict[str, Any]) -> IMMessage:  # noqa: ARG002
             return IMMessage()
 
-        def build_response(self, content: str, msg_type: str = "text") -> dict:  # noqa: ARG002
+        def build_response(self, content: str, msg_type: str = "text") -> dict[str, Any]:  # noqa: ARG002
             return {}
 
     # platform_name 应被设置为 "test-platform-xyz"
@@ -119,13 +119,13 @@ def test_base_im_bot_build_error_response() -> None:
     """build_error_response 应返回包含错误文本的响应."""
 
     class _Stub(BaseIMBot):
-        def verify_signature(self, payload: dict, headers: dict, raw_body=None):  # noqa: ARG002
+        def verify_signature(self, payload: dict[str, Any], headers: dict[str, str], raw_body: bytes | None = None) -> bool:  # noqa: ARG002
             return True
 
-        def parse_message(self, payload: dict) -> IMMessage:  # noqa: ARG002
+        def parse_message(self, payload: dict[str, Any]) -> IMMessage:  # noqa: ARG002
             return IMMessage()
 
-        def build_response(self, content: str, msg_type: str = "text") -> dict:  # noqa: ARG002
+        def build_response(self, content: str, msg_type: str = "text") -> dict[str, Any]:  # noqa: ARG002
             return {"content": content}
 
     stub = _Stub()
@@ -138,13 +138,13 @@ def test_base_im_bot_default_send_message_returns_false() -> None:
     """BaseIMBot.send_message 默认实现应返回 False."""
 
     class _Stub(BaseIMBot):
-        def verify_signature(self, payload: dict, headers: dict, raw_body=None):  # noqa: ARG002
+        def verify_signature(self, payload: dict[str, Any], headers: dict[str, str], raw_body: bytes | None = None) -> bool:  # noqa: ARG002
             return True
 
-        def parse_message(self, payload: dict) -> IMMessage:  # noqa: ARG002
+        def parse_message(self, payload: dict[str, Any]) -> IMMessage:  # noqa: ARG002
             return IMMessage()
 
-        def build_response(self, content: str, msg_type: str = "text") -> dict:  # noqa: ARG002
+        def build_response(self, content: str, msg_type: str = "text") -> dict[str, Any]:  # noqa: ARG002
             return {}
 
     assert _Stub().send_message("hi") is False

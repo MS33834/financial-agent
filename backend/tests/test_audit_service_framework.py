@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
 from sqlalchemy.orm import Session
 
@@ -19,7 +21,7 @@ from audit_service import (
 
 
 @pytest.fixture(autouse=True)
-def _isolate_default_logger() -> None:
+def _isolate_default_logger() -> Generator[None, None, None]:
     """每个测试前后清空默认 logger，避免 sink 跨测试污染."""
     logger = get_default_logger()
     logger.clear_sinks()

@@ -126,17 +126,13 @@ def test_create_user_handles_unexpected_integrity_error(
 
     # 模拟 commit 时抛 IntegrityError（覆盖 rollback 路径）
     with client:
-        from app.routers import users as users_router
-
-        original_commit = users_router.User.__class__  # type: ignore[attr-defined]
-
         def _fake_commit(_self: object) -> None:
-            raise IntegrityError("stmt", "params", "orig")
+            raise IntegrityError("stmt", "params", Exception("orig"))
 
         # 实际是 db.commit() 抛错，直接对 Session monkey-patch
         from unittest.mock import patch
 
-        with patch.object(db_session, "commit", side_effect=IntegrityError("s", "p", "o")):
+        with patch.object(db_session, "commit", side_effect=IntegrityError("s", "p", Exception("o"))):
             resp = client.post(
                 "/api/v1/users",
                 headers=_admin_headers(admin),

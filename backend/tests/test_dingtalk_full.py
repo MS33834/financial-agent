@@ -7,14 +7,10 @@ send_message 主动推送。
 import base64
 import hashlib
 import hmac
-import json
 import time
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from app.im.dingtalk import DingTalkBot
-
 
 SECRET = "dingtalk-secret-abc"
 

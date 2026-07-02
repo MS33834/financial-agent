@@ -10,7 +10,7 @@
 # mypy: disable-error-code="attr-defined"
 
 import json
-from typing import Any
+from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,7 +22,6 @@ from app.services.rag_service import (
     cosine_similarity,
     embed,
 )
-
 
 # ------------------------------------------------------------------
 # chunk_text
@@ -110,9 +109,9 @@ def test_embed_success() -> None:
 
 def test_embed_connection_error_raises_unavailable() -> None:
     """Ollama 不可达应抛 RagUnavailableError."""
-    with patch("app.services.rag_service.httpx.post", side_effect=Exception("conn refused")):
-        with pytest.raises(RagUnavailableError) as exc_info:
-            embed("test")
+    with patch("app.services.rag_service.httpx.post", side_effect=Exception("conn refused")), \
+         pytest.raises(RagUnavailableError) as exc_info:
+        embed("test")
     assert "无法连接" in str(exc_info.value)
 
 
@@ -121,9 +120,9 @@ def test_embed_non_200_raises_unavailable() -> None:
     fake_response = MagicMock()
     fake_response.status_code = 500
     fake_response.text = "internal error"
-    with patch("app.services.rag_service.httpx.post", return_value=fake_response):
-        with pytest.raises(RagUnavailableError) as exc_info:
-            embed("test")
+    with patch("app.services.rag_service.httpx.post", return_value=fake_response), \
+         pytest.raises(RagUnavailableError) as exc_info:
+        embed("test")
     assert "500" in str(exc_info.value)
 
 
@@ -132,9 +131,9 @@ def test_embed_invalid_json_raises_unavailable() -> None:
     fake_response = MagicMock()
     fake_response.status_code = 200
     fake_response.json.side_effect = json.JSONDecodeError("err", "doc", 0)
-    with patch("app.services.rag_service.httpx.post", return_value=fake_response):
-        with pytest.raises(RagUnavailableError) as exc_info:
-            embed("test")
+    with patch("app.services.rag_service.httpx.post", return_value=fake_response), \
+         pytest.raises(RagUnavailableError) as exc_info:
+        embed("test")
     assert "非 JSON" in str(exc_info.value)
 
 
@@ -143,9 +142,9 @@ def test_embed_missing_embedding_field_raises() -> None:
     fake_response = MagicMock()
     fake_response.status_code = 200
     fake_response.json.return_value = {"other": "data"}
-    with patch("app.services.rag_service.httpx.post", return_value=fake_response):
-        with pytest.raises(RagUnavailableError) as exc_info:
-            embed("test")
+    with patch("app.services.rag_service.httpx.post", return_value=fake_response), \
+         pytest.raises(RagUnavailableError) as exc_info:
+        embed("test")
     assert "缺少 embedding" in str(exc_info.value)
 
 
@@ -154,9 +153,9 @@ def test_embed_non_list_embedding_raises() -> None:
     fake_response = MagicMock()
     fake_response.status_code = 200
     fake_response.json.return_value = {"embedding": "not-a-list"}
-    with patch("app.services.rag_service.httpx.post", return_value=fake_response):
-        with pytest.raises(RagUnavailableError):
-            embed("test")
+    with patch("app.services.rag_service.httpx.post", return_value=fake_response), \
+         pytest.raises(RagUnavailableError):
+        embed("test")
 
 
 # ------------------------------------------------------------------
@@ -164,10 +163,9 @@ def test_embed_non_list_embedding_raises() -> None:
 # ------------------------------------------------------------------
 
 
-def _fake_embed_factory(vectors: list[list[float]]):
+def _fake_embed_factory(vectors: list[list[float]]) -> Callable[[str], list[float]]:
     """构造 embed 的 mock，每次调用依次返回 vectors 中的下一个."""
     iterator = iter(vectors)
-    responses: list[Any] = []
 
     def _fake_embed(_text: str) -> list[float]:
         v = next(iterator)
@@ -208,9 +206,9 @@ def test_rag_service_query_across_tenant_isolation() -> None:
     service = RagService()
     service._index[("t1", "doc1")] = [{"chunk": "secret", "embedding": [0.0, 1.0]}]
     # 租户 t2 查询 t1 的文档应找不到
-    with patch("app.services.rag_service.embed", return_value=[0.0, 1.0]):
-        with pytest.raises(ValueError) as exc_info:
-            service.query("test", tenant_id="t2", document_id="doc1")
+    with patch("app.services.rag_service.embed", return_value=[0.0, 1.0]), \
+         pytest.raises(ValueError) as exc_info:
+        service.query("test", tenant_id="t2", document_id="doc1")
     assert "尚未建立索引" in str(exc_info.value)
 
 

@@ -10,7 +10,6 @@ tracing.py 通过 ``_OTEL_AVAILABLE`` 标志位做软依赖降级，单元测试
 
 # mypy: disable-error-code="attr-defined"
 
-import sys
 import types
 from collections.abc import Generator
 
@@ -31,11 +30,11 @@ def with_otel_installed() -> Generator[None, None, None]:
         last: object | None = None
 
     fake_trace = _FakeTrace()
-    tracing_mod.trace = fake_trace  # type: ignore[attr-defined]
+    tracing_mod.trace = fake_trace
 
     fake_resource = types.SimpleNamespace()
     fake_resource.create = lambda attrs: ("resource", attrs)
-    tracing_mod.Resource = fake_resource  # type: ignore[attr-defined]
+    tracing_mod.Resource = fake_resource
 
     class _FakeProvider:
         def __init__(self, resource: object) -> None:
@@ -46,7 +45,7 @@ def with_otel_installed() -> Generator[None, None, None]:
             self.processors.append(processor)
 
     class _FakeTracerProvider:
-        instances: list[_FakeProvider] = []
+        instances: list["_FakeTracerProvider"] = []
 
         def __init__(self, resource: object) -> None:
             self.resource = resource
@@ -69,10 +68,10 @@ def with_otel_installed() -> Generator[None, None, None]:
         def instrument_app(app: object) -> None:
             pass
 
-    tracing_mod.TracerProvider = _FakeTracerProvider  # type: ignore[attr-defined]
-    tracing_mod.OTLPSpanExporter = _FakeExporter  # type: ignore[attr-defined]
-    tracing_mod.BatchSpanProcessor = _FakeBatchSpanProcessor  # type: ignore[attr-defined]
-    tracing_mod.FastAPIInstrumentor = _FakeFastAPIInstrumentor  # type: ignore[attr-defined]
+    tracing_mod.TracerProvider = _FakeTracerProvider
+    tracing_mod.OTLPSpanExporter = _FakeExporter
+    tracing_mod.BatchSpanProcessor = _FakeBatchSpanProcessor
+    tracing_mod.FastAPIInstrumentor = _FakeFastAPIInstrumentor
 
     # 重置单例状态
     tracing_mod._OTEL_AVAILABLE = True

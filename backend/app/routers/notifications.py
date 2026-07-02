@@ -3,14 +3,16 @@
 提供用户站内信列表查询与已读标记接口。
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.common import DataResponse
+from app.security import get_current_user
 from notification import get_notification_service
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["Notifications"])
@@ -22,7 +24,7 @@ def list_notifications(
     limit: int = Query(default=50, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict:
+) -> dict[str, Any]:
     """查询当前用户的站内信列表."""
     settings = get_settings()
     service = get_notification_service(db, settings)
@@ -35,7 +37,7 @@ def mark_read(
     notification_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict:
+) -> dict[str, Any]:
     """标记站内信为已读."""
     settings = get_settings()
     service = get_notification_service(db, settings)

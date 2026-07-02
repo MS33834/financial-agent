@@ -28,7 +28,6 @@ from app.core.encryption import (
     re_encrypt,
 )
 
-
 # ------------------------------------------------------------------
 # 工具函数
 # ------------------------------------------------------------------
@@ -172,11 +171,8 @@ def test_decrypt_handles_invalid_ciphertext() -> None:
 
 def test_decrypt_legacy_format() -> None:
     """旧格式（无版本前缀）应仍能解密."""
-    fernet = Fernet(Fernet.generate_key())
     salt_b = b"\x00" * 16
     plain = "legacy data"
-    cipher_b = fernet.encrypt(plain.encode())
-    encoded = f"{base64.urlsafe_b64encode(salt_b).decode()}:{base64.urlsafe_b64encode(cipher_b).decode()}"
 
     # 用 fernet 的 secret 派生 key 来解密
     with patch("app.core.encryption.get_settings") as mock_settings:

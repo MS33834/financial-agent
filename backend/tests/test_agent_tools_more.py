@@ -9,7 +9,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.agent_runtime.tools import (

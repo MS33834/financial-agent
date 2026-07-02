@@ -3,7 +3,6 @@
 覆盖 list / get / resolve 三个端点，以及 401/403/404 处理。
 """
 
-from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -52,7 +51,7 @@ def _reflection(
         "resolution": None,
     }
     defaults.update(kwargs)
-    r = Reflection(**defaults)  # type: ignore[arg-type]
+    r = Reflection(**defaults)
     db.add(r)
     db.commit()
     db.refresh(r)
