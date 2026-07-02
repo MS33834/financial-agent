@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "financial-agent-backend"
-version = "0.2.0"
+version = "0.2.1"
 description = "企业级财务智能体后端服务"
 readme = { text = "企业级财务智能体后端服务", content-type = "text/plain" }
 requires-python = ">=3.12"

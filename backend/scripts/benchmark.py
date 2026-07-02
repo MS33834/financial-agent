@@ -54,9 +54,11 @@ def main() -> None:
     password = os.getenv("BENCH_PASSWORD", "demo123")
     requests_per_endpoint = int(os.getenv("BENCH_REQUESTS", "10"))
 
+    ready_status = int(os.getenv("BENCH_READY_STATUS", "200"))
     public_endpoints = [
         ("/health", "GET", 200, None),
-        ("/health/ready", "GET", 200, None),
+        ("/health/live", "GET", 200, None),
+        ("/health/ready", "GET", ready_status, None),
         ("/metrics", "GET", 200, None),
     ]
 

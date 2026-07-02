@@ -67,6 +67,9 @@ backend:
     targetPort: 8000
 
   healthCheck:
+    # 探针路径与后端路由 /health 下挂载的端点一致（见 docs/ops/deployment.md）
+    livenessPath: /health/live
+    readinessPath: /health/ready
     initialDelaySeconds: 30
     periodSeconds: 15
     timeoutSeconds: 10
@@ -192,12 +195,32 @@ secrets:
   SECRET_KEY: ""
   # 仅 TASK_BACKEND=celery 时需要
   REDIS_URL: ""
+  CELERY_BROKER_URL: ""
+  CELERY_RESULT_BACKEND: ""
   # 仅 STORAGE_BACKEND=minio 时需要
   MINIO_ENDPOINT: ""
   MINIO_ACCESS_KEY: ""
   MINIO_SECRET_KEY: ""
   MINIO_PUBLIC_URL: ""
+  # MinIO 控制台 root 凭据（仅 Chart 自带 MinIO 部署时使用，生产建议外置 MinIO）
+  MINIO_ROOT_USER: ""
+  MINIO_ROOT_PASSWORD: ""
+  # Dify 对接
+  DIFY_API_KEY: ""
   DIFY_TOOL_API_KEY: ""
+  # OpenAI 兼容 API（仅 LLM_PROVIDER=openai 时需要）
+  OPENAI_API_KEY: ""
+  # IM 机器人密钥 / Webhook（按需配置）
+  DINGTALK_APP_SECRET: ""
+  DINGTALK_WEBHOOK: ""
+  FEISHU_ENCRYPT_KEY: ""
+  FEISHU_WEBHOOK: ""
+  WECOM_TOKEN: ""
+  WECOM_ENCODING_AES_KEY: ""
+  WECOM_WEBHOOK: ""
+  # 邮件通知 SMTP 凭据
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
 
 # 非敏感应用配置
 config:
@@ -208,6 +231,12 @@ config:
   MINIO_BUCKET: financial-agent
   OLLAMA_HOST: ""
   OLLAMA_MODEL: ""
+  # LLM 提供者: ollama（默认）/ openai（需在 secrets 配置 OPENAI_API_KEY）
+  LLM_PROVIDER: ollama
+  OPENAI_BASE_URL: ""
+  # Dify 对接（非敏感部分）
+  DIFY_BASE_URL: ""
+  DIFY_WORKFLOW_ID: ""
   TEXT2SQL_BACKEND: rule
   AGENT_INTENT_MODE: llm
   AGENT_LLM_MODEL: ""
@@ -215,9 +244,44 @@ config:
   RAG_TOP_K: "3"
   MINERU_API_URL: ""
   MINERU_TIMEOUT: "120"
+  # JWT 安全
+  ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+  ALGORITHM: HS256
+  # 分页
+  DEFAULT_PAGE_SIZE: "20"
+  MAX_PAGE_SIZE: "100"
+  # 邮件通知（非敏感部分）
+  SMTP_HOST: ""
+  SMTP_PORT: "587"
+  SMTP_FROM: ""
+  SMTP_USE_TLS: "true"
+  # 生产加固
+  # CORS 允许的源，多个用逗号分隔；生产环境必须限制为前端域名，禁止使用 "*"
+  CORS_ORIGINS: ""
   RATE_LIMIT_ENABLED: "true"
   RATE_LIMIT_MAX_REQUESTS: "120"
   RATE_LIMIT_WINDOW_SECONDS: "60"
+
+# ==========================
+# 持久化存储
+# ==========================
+# STORAGE_BACKEND=local 时后端文件写入 STORAGE_LOCAL_ROOT，必须挂载持久卷避免 Pod 重建丢数据。
+# STORAGE_BACKEND=minio 时可不启用 backend 持久卷（数据存于外部 MinIO）。
+persistence:
+  backend:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 20Gi
+    mountPath: /app/data/storage
+
+# ==========================
+# 健康探针路径（与 deployment.md 一致）
+# ==========================
+# 后端健康检查路由挂载在 /health 下：
+#   liveness  -> /health/live
+#   readiness -> /health/ready
+# 已在 backend.healthCheck 中通过 initialDelaySeconds / periodSeconds 等参数控制。
 
 # ==========================
 # 可观测性

@@ -6,19 +6,21 @@
 
 ## 用户与权限
 
-系统内置三种角色：
+系统内置四种角色：
 
 - `admin`：系统管理员，可管理用户、策略、审计日志。
 - `finance_manager`：可上传文档、生成报告、审批报告。
+- `auditor`：审计员，可查看审计日志、IM 用户映射、错误自省记录，但不可修改业务数据。
 - `viewer`：只读用户，可查看报告、使用智能问答。
 
-可通过数据库或管理接口创建用户。
+可通过数据库或管理接口创建用户。角色与接口权限的映射通过 ABAC（属性访问控制）策略实现，详见「访问策略」管理页面与 [deployment.md](./ops/deployment.md#配置热加载) 中的配置热加载说明。
 
 ## 监控
 
 - Prometheus 指标：`/metrics`
-- 健康检查：`/health`、`/health/ready`
+- 健康检查：`/health`、`/health/live`、`/health/ready`
 - Grafana 看板模板：[docs/ops/grafana-dashboard.json](./ops/grafana-dashboard.json)
+- 详细指标、告警规则与日志收集见 [docs/ops/monitoring.md](./ops/monitoring.md)
 
 ## 告警建议
 
@@ -31,10 +33,14 @@
 
 ## 安全加固
 
-- 生产环境修改 `SECRET_KEY` 和数据库密码。
+- 生产环境修改 `SECRET_KEY`（≥32 字符随机值）和数据库密码。
 - 限制 `/metrics` 仅允许监控网络访问。
-- 启用 HTTPS 并配置 CORS_ORIGINS。
-- 启用速率限制（RATE_LIMIT_ENABLED=true）。
+- 启用 HTTPS 并配置 `CORS_ORIGINS` 为具体前端域名（禁止 `*`）。
+- 启用速率限制（`RATE_LIMIT_ENABLED=true`）。
+- 配置 ABAC 访问策略，按角色 / 资源 / 操作粒度授权。
+- 启用审计日志并持久化（默认开启，存储于数据库 `audit_logs` 表）。
+
+完整的上线前检查项见 [deployment.md 的生产环境检查清单](./ops/deployment.md#生产环境检查清单)。
 
 ## 备份
 

@@ -2,11 +2,16 @@
 
 ## 健康检查端点
 
+后端健康检查路由挂载在 `/health` 下（无 `/api/v1` 前缀；若网关统一加前缀，则实际路径为 `/api/v1/health*`）：
+
 | 端点 | 说明 |
 |------|------|
-| `GET /api/v1/health` | 服务存活 |
-| `GET /api/v1/health/ready` | 服务就绪 |
+| `GET /health` | 服务存活，返回 `BaseResponse`（`code=0, message=ok`） |
+| `GET /health/live` | 存活探针（liveness），仅校验进程可响应 |
+| `GET /health/ready` | 就绪探针（readiness），检查 DB / Redis / MinIO，任一不可用返回 HTTP 503 |
 | `GET /metrics` | Prometheus 指标 |
+
+各端点的返回结构与 Kubernetes 探针配置见 [deployment.md](./deployment.md#健康检查端点) 的「健康检查端点」一节。
 
 ## Prometheus 指标
 
@@ -120,3 +125,78 @@ groups:
 
 - `/metrics` 不进入 API 文档
 - 生产环境建议通过 Nginx/网关限制 `/metrics` 仅允许监控网络访问
+
+## 日志收集
+
+后端使用结构化日志（JSON），便于日志聚合系统采集。建议生产环境接入集中式日志平台：
+
+### 推荐方案：Loki + Promtail
+
+```yaml
+# promtail-config.yml 片段
+scrape_configs:
+  - job_name: financial-agent
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=financial-agent"]
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            request_id: request_id
+            event: event
+      - labels:
+          level:
+          event:
+```
+
+- 日志查询示例（LogQL）：`{container="financial-agent-backend"} |= "unhandled_exception"`
+- 通过 `X-Request-ID` 串联单次请求的全链路日志。
+
+### 备选方案
+
+ELK（Elasticsearch + Logstash + Kibana）或云厂商日志服务（阿里云 SLS / AWS CloudWatch）亦可，采集容器 stdout 即可，无需修改应用代码。
+
+## Alertmanager 路由建议
+
+Prometheus 告警触发后经 Alertmanager 路由分发，建议按 severity 分级：
+
+| severity | 接收渠道 | 响应时效 |
+|----------|----------|----------|
+| `critical` | 钉钉/飞书机器人 + 电话值班 | 15 分钟内 |
+| `warning` | 钉钉/飞书机器人 | 1 小时内 |
+
+Alertmanager 路由示例：
+
+```yaml
+route:
+  receiver: default
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+routes:
+  - matchers: ["severity=critical"]
+    receiver: critical-pager
+  - matchers: ["severity=warning"]
+    receiver: warning-channel
+receivers:
+  - name: critical-pager
+    webhook_configs:
+      - url: "https://oapi.dingtalk.com/robot/send?access_token=<critical-token>"
+        send_resolved: true
+  - name: warning-channel
+    webhook_configs:
+      - url: "https://oapi.dingtalk.com/robot/send?access_token=<warning-token>"
+        send_resolved: true
+```
+
+## Grafana 看板变量
+
+导入看板后建议配置以下变量以便多维度筛选：
+
+- `$datasource`：选择 Prometheus 数据源
+- `$job`：`label_values(fa_http_requests_total, job)`，默认 `financial-agent-backend`
+- `$status_code`：`label_values(fa_http_requests_total, status_code)`，用于按 HTTP 状态码筛选

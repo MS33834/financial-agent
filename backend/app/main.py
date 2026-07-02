@@ -104,7 +104,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
         title=settings.app_name,
-        version="0.2.0",
+        version="0.2.1",
         description="企业级财务智能体后端 API",
         lifespan=lifespan,
     )

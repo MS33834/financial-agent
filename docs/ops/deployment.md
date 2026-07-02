@@ -43,11 +43,64 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 make logs-backend
 ```
 
+升级前务必先备份数据库（见「备份」一节），并保留上一个镜像 tag 以便回滚。
+
+## 回滚流程
+
+升级后发现异常时，按以下步骤回滚：
+
+```bash
+# 1. 回退代码到上一个稳定版本
+git checkout <previous-stable-tag>
+
+# 2. 如有数据库迁移，先回滚迁移（确认 down 脚本安全后再执行）
+cd backend && alembic downgrade -1
+
+# 3. 重新构建并启动上一个版本镜像
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# 4. 验证服务健康
+curl -fsS http://localhost:8000/health/ready
+```
+
+Kubernetes / Helm 部署回滚：
+
+```bash
+helm rollback financial-agent <REVISION_NUMBER>
+kubectl rollout undo deployment/financial-agent-backend
+```
+
+注意：若新版本执行了不可逆的数据库迁移（如删列），回滚前需先从备份恢复数据库，再回滚应用版本。
+
 ## 备份
 
 - PostgreSQL：定时 `pg_dump` 导出
 - MinIO：`mc mirror` 同步 bucket
 - 配置文件：`.env` 纳入密钥管理工具
+
+PostgreSQL 定时备份示例（crontab，每天 02:00 执行，保留 14 天）：
+
+```bash
+0 2 * * * docker exec financial-agent-postgres pg_dump -U postgres dify | gzip > /backup/pg_$(date +\%F).sql.gz && find /backup -name "pg_*.sql.gz" -mtime +14 -delete
+```
+
+MinIO 异步同步示例：
+
+```bash
+mc alias set local http://localhost:9000 minioadmin minioadmin123
+mc mirror --overwrite local/financial-agent backup/financial-agent
+```
+
+## HTTPS / TLS 配置
+
+生产环境必须启用 HTTPS。两种常见方式：
+
+1. **反向代理终止 TLS（推荐）**：在 Nginx / Ingress 层配置证书，后端仍走 HTTP。
+   - Docker Compose：在 `frontend` 容器的 Nginx 中挂载证书并监听 443。
+   - Kubernetes：通过 Ingress + cert-manager 自动签发 Let's Encrypt 证书（见 `values.yaml` 的 `ingress.tls`）。
+2. **后端直挂证书**：Uvicorn 以 `--ssl-keyfile` / `--ssl-certfile` 启动，仅适用于无网关的小型部署。
+
+证书过期前 30 天需续期；cert-manager 用户可配置 `cert-manager.io/cluster-issuer` 自动续期。
 
 ## 健康检查端点
 
@@ -123,3 +176,50 @@ Dockerfile 已配置 `--timeout-graceful-shutdown 30` 与 `--lifespan on`，`ent
 | 前端 502 | 检查 backend healthcheck 是否通过 |
 | 限流误触发 | 调整 `RATE_LIMIT_MAX_REQUESTS` / `RATE_LIMIT_WINDOW_SECONDS` |
 | Pod 被强制终止 | 检查 `terminationGracePeriodSeconds` 是否大于 Uvicorn graceful timeout |
+
+## 生产环境检查清单
+
+正式上线前请逐项确认。任一项未满足都应视为不具备上线条件。
+
+### 安全
+
+- [ ] SECRET_KEY 已修改为 32+ 字符的随机值
+- [ ] CORS_ORIGINS 已配置为具体前端域名（非通配符 `*`）
+- [ ] HTTPS/TLS 已配置
+- [ ] ABAC 权限策略已配置
+- [ ] 审计日志已启用并持久化
+- [ ] API Rate Limiting 已启用
+- [ ] 镜像安全扫描已通过（Trivy 0 HIGH/CRITICAL）
+
+### 数据与持久化
+
+- [ ] 数据库已配置定期备份
+- [ ] 数据卷已配置持久化
+
+### 可观测性
+
+- [ ] 日志收集已配置
+- [ ] 监控告警已配置（Prometheus + Grafana）
+- [ ] 健康检查端点已配置（`/health`、`/health/ready`）
+
+### 资源与弹性
+
+- [ ] 资源限制已配置（CPU/Memory limits）
+
+### 快速自检命令
+
+```bash
+# 1. 验证生产配置校验通过（app_env=production 时后端会强校验 SECRET_KEY / CORS）
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend \
+  python -c "from app.config import get_settings; s=get_settings(); print('env=',s.app_env,'cors=',s.cors_origins_list)"
+
+# 2. 验证健康检查端点
+curl -fsS http://localhost:8000/health
+curl -fsS http://localhost:8000/health/ready
+
+# 3. 验证指标端点可访问
+curl -fsS http://localhost:8000/metrics | head
+
+# 4. 镜像安全扫描
+make scan-backend TRIVY_EXIT_CODE=1
+```
