@@ -68,6 +68,7 @@ htmlcov/
 test-results/
 playwright-report/
 coverage.xml
+frontend/coverage/
 
 # Terraform / IaC
 *.tfstate
